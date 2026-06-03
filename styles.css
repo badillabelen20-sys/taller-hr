@@ -516,3 +516,35 @@ tr:last-child td {
 @media (max-width: 900px) {
     .budget-layout { grid-template-columns: 1fr; }
 }
+
+/* Payment Badges */
+.payment-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.payment-badge.badge-cash {
+    background-color: #dcfce7;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+.payment-badge.badge-debit {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+}
+.payment-badge.badge-credit {
+    background-color: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+.payment-badge.badge-other {
+    background-color: #f4f4f5;
+    color: #71717a;
+    border: 1px solid #e4e4e7;
+}

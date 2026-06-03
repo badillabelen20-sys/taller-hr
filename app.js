@@ -220,6 +220,28 @@ function renderLubricentro(filter = '') {
     });
 }
 
+function guessPaymentMethod(sale) {
+    if (sale.item_id === 'SERVICE') return 'Efectivo';
+    const item = inventory[sale.category]?.find(i => i.id === sale.item_id);
+    if (!item || !item.price) return '-';
+    
+    let qty = 1;
+    const match = sale.name.match(/\(x(\d+)\)/);
+    if (match) {
+        qty = parseInt(match[1], 10);
+    }
+    
+    const baseTotal = item.price * qty;
+    if (baseTotal <= 0) return '-';
+    
+    const ratio = sale.price / baseTotal;
+    if (Math.abs(ratio - 1.0) < 0.02) return 'Efectivo';
+    if (Math.abs(ratio - DEBIT_PERCENT) < 0.02) return 'Débito';
+    if (Math.abs(ratio - CREDIT_PERCENT) < 0.02) return 'Crédito';
+    
+    return 'Efectivo';
+}
+
 function renderSales() {
     const tT = document.querySelector('#table-ventas-turbos tbody');
     const tL = document.querySelector('#table-ventas-lubricentro tbody');
@@ -230,7 +252,26 @@ function renderSales() {
         const tr = document.createElement('tr');
         const d = new Date(s.date).toLocaleString('es-AR', { dateStyle:'short', timeStyle:'short' });
         const safePrice = parseFloat(s.price) || 0;
-        tr.innerHTML = `<td>${d}</td><td><strong>${s.name}</strong></td><td>$${safePrice.toFixed(2)}</td><td><button style="color:red; border:none; background:none; cursor:pointer;" onclick="deleteSale('${s.id}', '${s.date}')">Anular</button></td>`;
+        
+        let paymentMethod = '-';
+        let displayName = s.name;
+        
+        const methodMatch = s.name.match(/\s-\s(Efectivo|Débito|Crédito)$/);
+        if (methodMatch) {
+            paymentMethod = methodMatch[1];
+            displayName = s.name.replace(/\s-\s(Efectivo|Débito|Crédito)$/, '');
+        } else {
+            paymentMethod = guessPaymentMethod(s);
+        }
+        
+        let badgeClass = 'badge-other';
+        if (paymentMethod === 'Efectivo') badgeClass = 'badge-cash';
+        else if (paymentMethod === 'Débito') badgeClass = 'badge-debit';
+        else if (paymentMethod === 'Crédito') badgeClass = 'badge-credit';
+        
+        const paymentBadge = `<span class="payment-badge ${badgeClass}">${paymentMethod}</span>`;
+        
+        tr.innerHTML = `<td>${d}</td><td><strong>${displayName}</strong></td><td>${paymentBadge}</td><td>$${safePrice.toFixed(2)}</td><td><button style="color:red; border:none; background:none; cursor:pointer;" onclick="deleteSale('${s.id}', '${s.date}')">Anular</button></td>`;
         if (s.category === 'turbos') { totT += safePrice; tT.appendChild(tr); }
         else { totL += safePrice; tL.appendChild(tr); }
     });
@@ -407,7 +448,8 @@ async function completeSale(cat, index, price, method, qty = 1) {
     }
     item.stock -= qty; 
     
-    const saleName = qty > 1 ? `${item.name} (x${qty})` : item.name;
+    const baseSaleName = qty > 1 ? `${item.name} (x${qty})` : item.name;
+    const saleName = `${baseSaleName} - ${method}`;
     const newSale = { item_id: item.id, name: saleName, category: cat, price, date: new Date().toISOString() };
     
     if (client) {
@@ -432,7 +474,7 @@ async function deleteSale(id, date) {
         const item = inventory[s.category].find(i => i.id === productCode);
         
         let qtyToReturn = 1;
-        const match = s.name.match(/\(x(\d+)\)$/);
+        const match = s.name.match(/\(x(\d+)\)/);
         if (match) qtyToReturn = parseInt(match[1], 10);
         
         if (item) item.stock += qtyToReturn;
@@ -915,10 +957,12 @@ function setupServiceModal() {
         e.preventDefault();
         const vehicle = document.getElementById('service-vehicle').value;
         const price = parseFloat(document.getElementById('service-price').value) || 0;
+        const method = document.getElementById('service-method').value;
         const notes = document.getElementById('service-notes').value;
         
         let saleName = `⚙️ SERVICE: ${vehicle}`;
         if (notes) saleName += ` - ${notes}`;
+        saleName += ` - ${method}`;
         
         const newSale = { 
             item_id: "SERVICE", 
