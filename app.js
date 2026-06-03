@@ -218,7 +218,14 @@ function renderTurbos(filter = '') {
     const tbody = document.querySelector('#table-turbos tbody'); if (!tbody) return;
     tbody.innerHTML = '';
     inventory.turbos.forEach((item, index) => {
-        if (filter && !item.name.toLowerCase().includes(filter.toLowerCase())) return;
+        if (filter) {
+            const q = filter.toLowerCase();
+            const matchName = item.name?.toLowerCase().includes(q);
+            const matchId = item.id?.toLowerCase().includes(q);
+            const matchVehicle = item.vehicle?.toLowerCase().includes(q);
+            const matchType = item.type?.toLowerCase().includes(q);
+            if (!matchName && !matchId && !matchVehicle && !matchType) return;
+        }
         const tr = document.createElement('tr');
         const safePrice = parseFloat(item.price) || 0;
         tr.innerHTML = `<td>${item.type || '-'}</td><td><strong>${item.id}</strong></td><td>${item.name}</td><td>${item.vehicle || '-'}</td><td>$${safePrice.toFixed(2)}</td><td class="${item.stock <= 2 ? 'stock-low' : ''}">${item.stock}</td><td><button onclick="changeStock('turbos', ${index}, -1)">-</button><button onclick="changeStock('turbos', ${index}, 1)">+</button><button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:2px 5px; margin-left:5px;" onclick="openEditModal('turbos', ${index})">✏️</button></td>`;
@@ -230,7 +237,13 @@ function renderLubricentro(filter = '') {
     const tbody = document.querySelector('#table-lubricentro tbody'); if (!tbody) return;
     tbody.innerHTML = '';
     inventory.lubricentro.forEach((item, index) => {
-        if (filter && !item.name.toLowerCase().includes(filter.toLowerCase())) return;
+        if (filter) {
+            const q = filter.toLowerCase();
+            const matchName = item.name?.toLowerCase().includes(q);
+            const matchId = item.id?.toLowerCase().includes(q);
+            const matchType = item.type?.toLowerCase().includes(q);
+            if (!matchName && !matchId && !matchType) return;
+        }
         const tr = document.createElement('tr');
         const safePrice = parseFloat(item.price) || 0;
         tr.innerHTML = `<td>${item.type || '-'}</td><td><strong>${item.id}</strong></td><td>${item.name}</td><td>$${safePrice.toFixed(2)}</td><td class="${item.stock <= 5 ? 'stock-low' : ''}">${item.stock}</td><td><button onclick="changeStock('lubricentro', ${index}, -1)">-</button><button onclick="changeStock('lubricentro', ${index}, 1)">+</button><button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:2px 5px; margin-left:5px;" onclick="openEditModal('lubricentro', ${index})">✏️</button></td>`;
