@@ -1270,4 +1270,28 @@ function setupReception() {
     };
 }
 
+async function apply21PercentIncrease() {
+    if (!confirm("¿Estás seguro de que deseas aumentar el precio de todos los productos de Lubricentro en un 21%? (Se exceptuarán los aceites VALVOLINE DEXRON3 ATF HIDRAULICO y VALVOLINE 5W30 ACEA C3 x LITRO).")) {
+        return;
+    }
+    
+    let count = 0;
+    inventory.lubricentro.forEach(item => {
+        const nameUpper = item.name.toUpperCase();
+        // Verificar las excepciones exactas y sus términos clave
+        const isDexron = nameUpper.includes("VALVOLINE DEXRON3 ATF HIDRAULICO") || nameUpper.includes("DEXRON3");
+        const is5w30c3 = nameUpper.includes("VALVOLINE 5W30 ACEA C3") || (nameUpper.includes("5W30") && nameUpper.includes("C3"));
+        
+        if (!isDexron && !is5w30c3) {
+            const oldPrice = parseFloat(item.price) || 0;
+            item.price = Math.round(oldPrice * 1.21 * 100) / 100; // Redondear a 2 decimales para evitar problemas de precisión
+            count++;
+        }
+    });
+    
+    await saveData();
+    renderAll();
+    alert(`¡Éxito! Se actualizaron los precios de ${count} productos en un 21%.`);
+}
+
 init();
