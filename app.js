@@ -5,6 +5,7 @@ const SUPABASE_KEY = 'sb_publishable_n6gpg6LRXdKHERrCGMjllw_bKM9vECK';
 let client = null;
 let inventory = { turbos: [], lubricentro: [] };
 let sales = [];
+let receptions = [];
 let currentUser = null;
 const DEBIT_PERCENT = 1.06;
 const CREDIT_PERCENT = 1.096;
@@ -53,6 +54,7 @@ async function init() {
     setupWegaManualImport();
     setupMannManualImport();
     setupServiceModal();
+    setupReception();
     
     // 3. Cargar archivos y almacenamiento local de forma segura
     try { loadWegaExcel(); } catch (e) { console.warn(e); }
@@ -147,6 +149,19 @@ async function loadFromCloud() {
             inventory.turbos = inv.filter(i => i.category === 'turbos');
             inventory.lubricentro = inv.filter(i => i.category === 'lubricentro');
             
+            // Cargar recepciones de turbos
+            receptions = inv
+                .filter(i => i.category === 'reception_turbo')
+                .map(row => {
+                    try {
+                        return JSON.parse(row.vehicle);
+                    } catch (err) {
+                        console.error("Error parsing reception turbo:", err, row.vehicle);
+                        return null;
+                    }
+                })
+                .filter(r => r !== null);
+            
             // Limpiar duplicados de ventas automáticamente en la vista local
             const uniqueSales = [];
             const seenSales = new Set();
@@ -168,7 +183,7 @@ async function syncWithCloud(manual = false) {
     if (!client || !currentUser) return;
     try {
         const all = [...inventory.turbos.map(i=>({...i, category:'turbos'})), ...inventory.lubricentro.map(i=>({...i, category:'lubricentro'}))];
-        await client.from('datos_taller_ro').delete().neq('category', 'vehicle_config');
+        await client.from('datos_taller_ro').delete().in('category', ['turbos', 'lubricentro']);
         if (all.length > 0) {
             for (let i = 0; i < all.length; i += 500) await client.from('datos_taller_ro').insert(all.slice(i, i + 500));
         }
@@ -180,6 +195,7 @@ async function syncWithCloud(manual = false) {
 async function saveData() {
     localStorage.setItem('taller_inventory', JSON.stringify(inventory));
     localStorage.setItem('taller_sales', JSON.stringify(sales));
+    localStorage.setItem('taller_receptions', JSON.stringify(receptions));
     await syncWithCloud();
 }
 
@@ -187,14 +203,16 @@ function loadFromLocal() {
     try {
         const inv = localStorage.getItem('taller_inventory');
         const sls = localStorage.getItem('taller_sales');
+        const recs = localStorage.getItem('taller_receptions');
         if (inv) inventory = JSON.parse(inv);
         if (sls) sales = JSON.parse(sls);
+        if (recs) receptions = JSON.parse(recs);
     } catch (e) {
         console.warn("Local storage parse error:", e);
     }
 }
 
-function renderAll() { renderTurbos(); renderLubricentro(); renderSales(); updateOilSelect(); }
+function renderAll() { renderTurbos(); renderLubricentro(); renderSales(); renderReceptions(); updateOilSelect(); }
 
 function renderTurbos(filter = '') {
     const tbody = document.querySelector('#table-turbos tbody'); if (!tbody) return;
@@ -1014,6 +1032,208 @@ function setupServiceModal() {
         await saveData();
         renderAll();
         closeServiceModal();
+    };
+}
+
+// --- RECEPCION DE TURBOS ---
+function calculateDaysInShop(dateIngress, dateDelivery, status) {
+    if (!dateIngress) return 0;
+    const start = new Date(dateIngress);
+    const end = (status === 'Entregado' && dateDelivery) ? new Date(dateDelivery) : new Date();
+    
+    start.setHours(0,0,0,0);
+    end.setHours(0,0,0,0);
+    
+    const diffTime = end - start;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays : 0;
+}
+
+function renderReceptions(filter = '') {
+    const tbody = document.querySelector('#table-reception tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    const filtered = receptions.filter(r => {
+        if (!filter) return true;
+        const q = filter.toLowerCase();
+        return r.clientName?.toLowerCase().includes(q) ||
+               r.contact?.toLowerCase().includes(q) ||
+               r.turboDetails?.toLowerCase().includes(q);
+    });
+    
+    filtered.sort((a, b) => new Date(b.dateIngress) - new Date(a.dateIngress)).forEach(r => {
+        const tr = document.createElement('tr');
+        
+        const fIngress = r.dateIngress ? r.dateIngress.split('-').reverse().join('/') : '-';
+        const fDelivery = r.dateDelivery ? r.dateDelivery.split('-').reverse().join('/') : '-';
+        
+        const days = calculateDaysInShop(r.dateIngress, r.dateDelivery, r.deliveryStatus);
+        
+        const budgetBadge = `<span class="status-badge ${r.budgetStatus === 'Presupuestado' ? 'badge-budget-presupuestado' : 'badge-budget-no'}">${r.budgetStatus}</span>`;
+        const deliveryBadge = `<span class="status-badge ${r.deliveryStatus === 'Entregado' ? 'badge-delivery-entregado' : 'badge-delivery-no'}">${r.deliveryStatus}</span>`;
+        const paymentBadge = `<span class="status-badge ${r.paymentStatus === 'Pagado' ? 'badge-payment-pagado' : 'badge-payment-no'}">${r.paymentStatus}</span>`;
+        
+        let methodClass = 'badge-other';
+        if (r.paymentMethod === 'Efectivo') methodClass = 'badge-cash';
+        else if (r.paymentMethod === 'Transferencia') methodClass = 'badge-transfer';
+        else if (r.paymentMethod === 'Débito') methodClass = 'badge-debit';
+        else if (r.paymentMethod === 'Crédito') methodClass = 'badge-credit';
+        
+        const methodBadge = r.paymentMethod && r.paymentMethod !== '-' ? `<span class="payment-badge ${methodClass}">${r.paymentMethod}</span>` : '-';
+        const safeCost = parseFloat(r.price) || 0;
+        
+        tr.innerHTML = `
+            <td>${fIngress}</td>
+            <td><strong>${r.clientName}</strong></td>
+            <td>${r.contact}</td>
+            <td>${r.turboDetails}</td>
+            <td>${budgetBadge}</td>
+            <td>$${safeCost.toFixed(2)}</td>
+            <td>${deliveryBadge}</td>
+            <td style="text-align: center;"><strong>${days}</strong></td>
+            <td>${paymentBadge}</td>
+            <td>${methodBadge}</td>
+            <td>${fDelivery}</td>
+            <td>
+                <button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:2px 5px;" onclick="openEditReceptionModal('${r.id}')">✏️</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function openEditReceptionModal(id) {
+    const rec = receptions.find(r => r.id === id);
+    if (!rec) return;
+    
+    document.getElementById('reception-id').value = rec.id;
+    document.getElementById('reception-modal-title').innerText = "Editar Recepción de Turbo";
+    document.getElementById('reception-date-ingress').value = rec.dateIngress || '';
+    document.getElementById('reception-date-delivery').value = rec.dateDelivery || '';
+    document.getElementById('reception-client-name').value = rec.clientName || '';
+    document.getElementById('reception-contact').value = rec.contact || '';
+    document.getElementById('reception-turbo-details').value = rec.turboDetails || '';
+    document.getElementById('reception-budget-status').value = rec.budgetStatus || 'No presupuestado';
+    document.getElementById('reception-cost').value = rec.price || 0;
+    document.getElementById('reception-delivery-status').value = rec.deliveryStatus || 'No entregado';
+    document.getElementById('reception-payment-status').value = rec.paymentStatus || 'No pagado';
+    document.getElementById('reception-payment-method').value = rec.paymentMethod || '-';
+    
+    const deleteBtn = document.getElementById('btn-delete-reception');
+    if (deleteBtn) deleteBtn.style.display = 'inline-flex';
+    
+    document.getElementById('reception-modal').classList.remove('hidden');
+}
+
+function openReceptionModal() {
+    document.getElementById('reception-id').value = 'r_' + Date.now();
+    document.getElementById('reception-modal-title').innerText = "Nueva Recepción de Turbo";
+    document.getElementById('reception-date-ingress').value = new Date().toISOString().split('T')[0];
+    document.getElementById('reception-date-delivery').value = '';
+    document.getElementById('reception-client-name').value = '';
+    document.getElementById('reception-contact').value = '';
+    document.getElementById('reception-turbo-details').value = '';
+    document.getElementById('reception-budget-status').value = 'No presupuestado';
+    document.getElementById('reception-cost').value = 0;
+    document.getElementById('reception-delivery-status').value = 'No entregado';
+    document.getElementById('reception-payment-status').value = 'No pagado';
+    document.getElementById('reception-payment-method').value = '-';
+    
+    const deleteBtn = document.getElementById('btn-delete-reception');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    
+    document.getElementById('reception-modal').classList.remove('hidden');
+}
+
+function closeReceptionModal() {
+    document.getElementById('reception-modal').classList.add('hidden');
+}
+
+async function saveReception(rec) {
+    const idx = receptions.findIndex(r => r.id === rec.id);
+    if (idx > -1) {
+        receptions[idx] = rec;
+    } else {
+        receptions.push(rec);
+    }
+    
+    localStorage.setItem('taller_receptions', JSON.stringify(receptions));
+    
+    if (client && currentUser) {
+        try {
+            const row = {
+                id: rec.id,
+                category: 'reception_turbo',
+                name: rec.clientName,
+                vehicle: JSON.stringify(rec)
+            };
+            await client.from('datos_taller_ro').delete().eq('id', rec.id).eq('category', 'reception_turbo');
+            await client.from('datos_taller_ro').insert([row]);
+        } catch (e) {
+            console.error("Error al guardar recepción en la nube:", e);
+        }
+    }
+    
+    renderAll();
+}
+
+async function deleteReception() {
+    const id = document.getElementById('reception-id').value;
+    if (!id) return;
+    
+    const idx = receptions.findIndex(r => r.id === id);
+    if (idx > -1) {
+        const rec = receptions[idx];
+        if (confirm(`¿Estás seguro de que deseas eliminar la recepción de "${rec.clientName}"?`)) {
+            receptions.splice(idx, 1);
+            localStorage.setItem('taller_receptions', JSON.stringify(receptions));
+            
+            if (client && currentUser) {
+                try {
+                    await client.from('datos_taller_ro').delete().eq('id', id).eq('category', 'reception_turbo');
+                } catch (e) {
+                    console.error("Error al borrar recepción en la nube:", e);
+                }
+            }
+            
+            renderAll();
+            closeReceptionModal();
+        }
+    }
+}
+
+function setupReception() {
+    const searchInput = document.getElementById('search-reception');
+    if (searchInput) {
+        searchInput.oninput = (e) => renderReceptions(e.target.value);
+    }
+    
+    const form = document.getElementById('reception-form');
+    if (!form) return;
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        
+        const rec = {
+            id: document.getElementById('reception-id').value,
+            dateIngress: document.getElementById('reception-date-ingress').value,
+            dateDelivery: document.getElementById('reception-date-delivery').value,
+            clientName: document.getElementById('reception-client-name').value,
+            contact: document.getElementById('reception-contact').value,
+            turboDetails: document.getElementById('reception-turbo-details').value,
+            budgetStatus: document.getElementById('reception-budget-status').value,
+            price: parseFloat(document.getElementById('reception-cost').value) || 0,
+            deliveryStatus: document.getElementById('reception-delivery-status').value,
+            paymentStatus: document.getElementById('reception-payment-status').value,
+            paymentMethod: document.getElementById('reception-payment-method').value
+        };
+        
+        if (rec.deliveryStatus === 'Entregado' && !rec.dateDelivery) {
+            rec.dateDelivery = new Date().toISOString().split('T')[0];
+        }
+        
+        await saveReception(rec);
+        closeReceptionModal();
     };
 }
 

@@ -564,3 +564,13 @@ tr:last-child td {
     background: #6b21a8;
     color: white;
 }
+
+/* Badges de Recepción */
+.badge-budget-presupuestado { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.badge-budget-no { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+.badge-delivery-entregado { background-color: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.badge-delivery-no { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+
+.badge-payment-pagado { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.badge-payment-no { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }

@@ -41,6 +41,7 @@
             <button class="tab-btn" data-tab="lubricentro">Lubricentro</button>
             <button class="tab-btn" data-tab="ventas-turbos">Libro Turbos</button>
             <button class="tab-btn" data-tab="ventas-lubricentro">Libro Lubricentro</button>
+            <button class="tab-btn" data-tab="recepcion">Recepcion de Turbos</button>
             <button class="tab-btn" data-tab="presupuesto">📋 Presupuesto</button>
             <button id="sync-btn" class="btn btn-sell" style="background: #10b981; margin-left: 10px;" onclick="syncWithCloud(true)">🔄 Sincronizar Nube</button>
             <button id="logout-btn" class="btn-logout" title="Cerrar Sesión">❌</button>
@@ -252,6 +253,41 @@
                 </div>
             </div>
         </section>
+
+        <!-- Tab Recepción de Turbos -->
+        <section id="recepcion" class="tab-content">
+            <div class="tab-header">
+                <h2>Recepción de Turbos</h2>
+                <div>
+                    <button class="btn btn-add" onclick="openReceptionModal()">+ Nueva Recepción</button>
+                </div>
+            </div>
+            <input type="text" class="search-bar" id="search-reception" placeholder="Buscar por cliente, contacto o datos del turbo...">
+            
+            <div class="table-container">
+                <table id="table-reception">
+                    <thead>
+                        <tr>
+                            <th>F. Ingreso</th>
+                            <th>Cliente</th>
+                            <th>Contacto</th>
+                            <th>Datos del Turbo</th>
+                            <th>Presupuesto</th>
+                            <th>Costo</th>
+                            <th>Estado</th>
+                            <th style="text-align: center;">Taller</th>
+                            <th>Pago</th>
+                            <th>Medio</th>
+                            <th>F. Entrega</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Filas de recepciones generadas por JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </main>
 
     <!-- Modal Nuevo Vehículo -->
@@ -355,6 +391,93 @@
                 <div class="modal-actions">
                     <button type="button" class="btn btn-cancel" onclick="closeServiceModal()">Cancelar</button>
                     <button type="submit" class="btn btn-save">Guardar Service</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Nueva/Editar Recepción de Turbo -->
+    <div id="reception-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2 id="reception-modal-title">Nueva Recepción de Turbo</h2>
+            <form id="reception-form">
+                <input type="hidden" id="reception-id">
+                
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Fecha de Ingreso</label>
+                        <input type="date" id="reception-date-ingress" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Fecha de Entrega (Opcional)</label>
+                        <input type="date" id="reception-date-delivery">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Nombre del Cliente</label>
+                        <input type="text" id="reception-client-name" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Teléfono / Contacto</label>
+                        <input type="text" id="reception-contact" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Datos del Turbo (Ej: K03 Peugeot 3008)</label>
+                    <input type="text" id="reception-turbo-details" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Presupuesto</label>
+                        <select id="reception-budget-status" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                            <option value="No presupuestado">No presupuestado</option>
+                            <option value="Presupuestado">Presupuestado</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Costo ($)</label>
+                        <input type="number" id="reception-cost" step="0.01" value="0">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Estado Entrega</label>
+                        <select id="reception-delivery-status" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                            <option value="No entregado">No entregado</option>
+                            <option value="Entregado">Entregado</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Estado Pago</label>
+                        <select id="reception-payment-status" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                            <option value="No pagado">No pagado</option>
+                            <option value="Pagado">Pagado</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Método de Pago</label>
+                    <select id="reception-payment-method" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                        <option value="-">- Seleccionar -</option>
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Transferencia">Transferencia</option>
+                        <option value="Débito">Débito</option>
+                        <option value="Crédito">Crédito</option>
+                    </select>
+                </div>
+
+                <div class="modal-actions" style="display: flex; width: 100%; justify-content: space-between; gap: 0.5rem; margin-top: 1.5rem;">
+                    <button type="button" id="btn-delete-reception" class="btn" style="background-color: var(--destructive); color: var(--destructive-foreground); margin-right: auto;" onclick="deleteReception()">🗑️ Eliminar</button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn btn-cancel" onclick="closeReceptionModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-save">Guardar</button>
+                    </div>
                 </div>
             </form>
         </div>
