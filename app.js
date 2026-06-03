@@ -286,21 +286,45 @@ function openEditModal(cat, index) {
     document.getElementById('modal-title').innerText = "Editar Producto";
     document.getElementById('input-type').value = item.type || '';
     document.getElementById('input-code').value = item.id;
-    document.getElementById('input-code').disabled = true;
+    document.getElementById('input-code').disabled = false;
     document.getElementById('input-name').value = item.name;
     document.getElementById('input-vehicle').value = item.vehicle || '';
     document.getElementById('input-price').value = item.price;
     document.getElementById('input-stock').value = item.stock;
     document.getElementById('group-vehicle').style.display = cat === 'turbos' ? 'block' : 'none';
+    
+    const deleteBtn = document.getElementById('btn-delete-product');
+    if (deleteBtn) deleteBtn.style.display = 'inline-flex';
+    
     document.getElementById('add-modal').classList.remove('hidden');
 }
 
 function openAddModal(cat) {
     editingIndex = null;
+    const form = document.getElementById('add-form');
+    if (form) form.reset();
     document.getElementById('modal-category').value = cat;
     document.getElementById('modal-title').innerText = "Agregar Producto";
     document.getElementById('input-code').disabled = false;
+    document.getElementById('group-vehicle').style.display = cat === 'turbos' ? 'block' : 'none';
+    
+    const deleteBtn = document.getElementById('btn-delete-product');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    
     document.getElementById('add-modal').classList.remove('hidden');
+}
+
+async function deleteProductFromInventory() {
+    const cat = document.getElementById('modal-category').value;
+    if (editingIndex === null) return;
+    
+    const item = inventory[cat][editingIndex];
+    if (confirm(`¿Estás seguro de que deseas eliminar el producto "${item.name}" del inventario?`)) {
+        inventory[cat].splice(editingIndex, 1);
+        await saveData();
+        renderAll();
+        closeAddModal();
+    }
 }
 
 function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
