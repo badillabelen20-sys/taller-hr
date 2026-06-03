@@ -256,16 +256,17 @@ function renderSales() {
         let paymentMethod = '-';
         let displayName = s.name;
         
-        const methodMatch = s.name.match(/\s-\s(Efectivo|Débito|Crédito)$/);
+        const methodMatch = s.name.match(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/);
         if (methodMatch) {
             paymentMethod = methodMatch[1];
-            displayName = s.name.replace(/\s-\s(Efectivo|Débito|Crédito)$/, '');
+            displayName = s.name.replace(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/, '');
         } else {
             paymentMethod = guessPaymentMethod(s);
         }
         
         let badgeClass = 'badge-other';
         if (paymentMethod === 'Efectivo') badgeClass = 'badge-cash';
+        else if (paymentMethod === 'Transferencia') badgeClass = 'badge-transfer';
         else if (paymentMethod === 'Débito') badgeClass = 'badge-debit';
         else if (paymentMethod === 'Crédito') badgeClass = 'badge-credit';
         
@@ -385,6 +386,11 @@ function setupPOS() {
                                     <span class="value" id="pos-price-cash">$${c.toFixed(2)}</span>
                                     <button class="btn-sell-pos cash" onclick="triggerPOSSale('${r.cat}', ${r.index}, 'Efectivo')">Vender</button>
                                 </div>
+                                <div class="price-tag transfer">
+                                    <span class="label">Transferencia</span>
+                                    <span class="value" id="pos-price-transfer">$${c.toFixed(2)}</span>
+                                    <button class="btn-sell-pos transfer" onclick="triggerPOSSale('${r.cat}', ${r.index}, 'Transferencia')">Vender</button>
+                                </div>
                                 <div class="price-tag debit">
                                     <span class="label">Débito (6%)</span>
                                     <span class="value" id="pos-price-debit">$${d.toFixed(2)}</span>
@@ -419,6 +425,7 @@ function updatePOSPrices() {
     const creditPrice = totalBase * CREDIT_PERCENT;
     
     document.getElementById('pos-price-cash').innerText = `$${totalBase.toFixed(2)}`;
+    document.getElementById('pos-price-transfer').innerText = `$${totalBase.toFixed(2)}`;
     document.getElementById('pos-price-debit').innerText = `$${debitPrice.toFixed(2)}`;
     document.getElementById('pos-price-credit').innerText = `$${creditPrice.toFixed(2)}`;
 }
