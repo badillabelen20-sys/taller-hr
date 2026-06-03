@@ -107,16 +107,47 @@ function setupAuth() {
     }
 }
 
+async function fetchAllFromCloud(tableName) {
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+    
+    while (hasMore) {
+        const { data, error } = await client
+            .from(tableName)
+            .select('*')
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+            
+        if (error) {
+            console.error(`Error al cargar datos de ${tableName} en la página ${page}:`, error);
+            throw error;
+        }
+        
+        if (data && data.length > 0) {
+            allData = allData.concat(data);
+            if (data.length < pageSize) {
+                hasMore = false;
+            } else {
+                page++;
+            }
+        } else {
+            hasMore = false;
+        }
+    }
+    return allData;
+}
+
 async function loadFromCloud() {
     if (!client) return;
     try {
-        const { data: inv } = await client.from('datos_taller_ro').select('*').limit(10000);
-        const { data: sls } = await client.from('ventas_taller_ro').select('*').limit(10000);
+        const inv = await fetchAllFromCloud('datos_taller_ro');
+        const sls = await fetchAllFromCloud('ventas_taller_ro');
         if (inv) {
             inventory.turbos = inv.filter(i => i.category === 'turbos');
             inventory.lubricentro = inv.filter(i => i.category === 'lubricentro');
             
-            // Limpiar duplicados de ventas automáticamente
+            // Limpiar duplicados de ventas automáticamente en la vista local
             const uniqueSales = [];
             const seenSales = new Set();
             (sls || []).forEach(s => {
@@ -124,16 +155,13 @@ async function loadFromCloud() {
                 if (!seenSales.has(key)) {
                     seenSales.add(key);
                     uniqueSales.push(s);
-                } else if (client && s.id) {
-                    // Borrar duplicado de la nube silenciosamente
-                    client.from('ventas_taller_ro').delete().eq('id', s.id).then();
                 }
             });
             sales = uniqueSales;
             
             renderAll();
         }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error cargando datos de Supabase:", e); }
 }
 
 async function syncWithCloud(manual = false) {
@@ -866,6 +894,52 @@ async function loadCustomVehicles() {
     if (!client) return;
     const { data } = await client.from('datos_taller_ro').select('*').eq('category', 'vehicle_config');
     if (data) data.forEach(row => { const v = JSON.parse(row.vehicle); VEHICLE_DB[v.id || row.id] = v; });
+}
+
+// --- SERVICE MANUAL ---
+function openServiceModal() {
+    document.getElementById('service-vehicle').value = '';
+    document.getElementById('service-price').value = '';
+    document.getElementById('service-notes').value = '';
+    document.getElementById('service-modal').classList.remove('hidden');
+}
+
+function closeServiceModal() {
+    document.getElementById('service-modal').classList.add('hidden');
+}
+
+function setupServiceModal() {
+    const form = document.getElementById('service-form');
+    if (!form) return;
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const vehicle = document.getElementById('service-vehicle').value;
+        const price = parseFloat(document.getElementById('service-price').value) || 0;
+        const notes = document.getElementById('service-notes').value;
+        
+        let saleName = `⚙️ SERVICE: ${vehicle}`;
+        if (notes) saleName += ` - ${notes}`;
+        
+        const newSale = { 
+            item_id: "SERVICE", 
+            name: saleName, 
+            category: "lubricentro", 
+            price: price, 
+            date: new Date().toISOString() 
+        };
+        
+        if (client) {
+            const { data } = await client.from('ventas_taller_ro').insert([newSale]).select();
+            if (data && data.length > 0) sales.push(data[0]);
+            else sales.push(newSale);
+        } else {
+            sales.push(newSale);
+        }
+        
+        await saveData();
+        renderAll();
+        closeServiceModal();
+    };
 }
 
 init();
