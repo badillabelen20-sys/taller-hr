@@ -279,6 +279,8 @@ function renderSales() {
     if (!tT || !tL) return;
     tT.innerHTML = ''; tL.innerHTML = '';
     let totT = 0, totL = 0;
+    let lubCash = 0, lubTransfer = 0, lubDebit = 0, lubCredit = 0;
+    
     sales.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(s => {
         const tr = document.createElement('tr');
         const d = new Date(s.date).toLocaleString('es-AR', { dateStyle:'short', timeStyle:'short' });
@@ -304,11 +306,29 @@ function renderSales() {
         const paymentBadge = `<span class="payment-badge ${badgeClass}">${paymentMethod}</span>`;
         
         tr.innerHTML = `<td>${d}</td><td><strong>${displayName}</strong></td><td>${paymentBadge}</td><td>$${safePrice.toFixed(2)}</td><td><button style="color:red; border:none; background:none; cursor:pointer;" onclick="deleteSale('${s.id}', '${s.date}')">Anular</button></td>`;
-        if (s.category === 'turbos') { totT += safePrice; tT.appendChild(tr); }
-        else { totL += safePrice; tL.appendChild(tr); }
+        if (s.category === 'turbos') { 
+            totT += safePrice; 
+            tT.appendChild(tr); 
+        } else { 
+            totL += safePrice; 
+            if (paymentMethod === 'Efectivo') lubCash += safePrice;
+            else if (paymentMethod === 'Transferencia') lubTransfer += safePrice;
+            else if (paymentMethod === 'Débito') lubDebit += safePrice;
+            else if (paymentMethod === 'Crédito') lubCredit += safePrice;
+            tL.appendChild(tr); 
+        }
     });
     document.getElementById('total-sales-turbos').innerText = `$${totT.toFixed(2)}`;
     document.getElementById('total-sales-lubricentro').innerText = `$${totL.toFixed(2)}`;
+    
+    const elCash = document.getElementById('total-lub-cash');
+    const elTransfer = document.getElementById('total-lub-transfer');
+    const elDebit = document.getElementById('total-lub-debit');
+    const elCredit = document.getElementById('total-lub-credit');
+    if (elCash) elCash.innerText = `$${lubCash.toFixed(2)}`;
+    if (elTransfer) elTransfer.innerText = `$${lubTransfer.toFixed(2)}`;
+    if (elDebit) elDebit.innerText = `$${lubDebit.toFixed(2)}`;
+    if (elCredit) elCredit.innerText = `$${lubCredit.toFixed(2)}`;
 }
 
 function openEditModal(cat, index) {

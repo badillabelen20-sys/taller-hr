@@ -155,11 +155,33 @@
 
         <!-- Tab Libro Lubricentro -->
         <section id="ventas-lubricentro" class="tab-content">
-            <div class="tab-header">
-                <h2>Libro Diario: Lubricentro</h2>
-                <div class="sales-summary" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                    <span style="font-size: 1.1rem; color: var(--primary-red);">Total Lubricentro: <strong id="total-sales-lubricentro">$0.00</strong></span>
+            <div class="tab-header" style="flex-direction: column; align-items: stretch; gap: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <h2>Libro Diario: Lubricentro</h2>
                     <button class="btn btn-add" onclick="openServiceModal()" style="font-size: 0.85rem; padding: 6px 12px; height: auto;">➕ Registrar Service Manual</button>
+                </div>
+                
+                <div class="sales-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; width: 100%; border-top: 1px solid var(--border); padding-top: 15px;">
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; text-align: center;">
+                        <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Total General</span>
+                        <strong id="total-sales-lubricentro" style="display: block; font-size: 1.1rem; color: var(--foreground); margin-top: 2px;">$0.00</strong>
+                    </div>
+                    <div style="background: #dcfce7; border: 1px solid #bbf7d0; border-radius: 8px; padding: 8px 12px; text-align: center;">
+                        <span style="font-size: 0.75rem; color: #166534; font-weight: 600; text-transform: uppercase;">Efectivo</span>
+                        <strong id="total-lub-cash" style="display: block; font-size: 1.1rem; color: #166534; margin-top: 2px;">$0.00</strong>
+                    </div>
+                    <div style="background: #f3e8ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 8px 12px; text-align: center;">
+                        <span style="font-size: 0.75rem; color: #6b21a8; font-weight: 600; text-transform: uppercase;">Transferencia</span>
+                        <strong id="total-lub-transfer" style="display: block; font-size: 1.1rem; color: #6b21a8; margin-top: 2px;">$0.00</strong>
+                    </div>
+                    <div style="background: #dbeafe; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 12px; text-align: center;">
+                        <span style="font-size: 0.75rem; color: #1e40af; font-weight: 600; text-transform: uppercase;">Débito</span>
+                        <strong id="total-lub-debit" style="display: block; font-size: 1.1rem; color: #1e40af; margin-top: 2px;">$0.00</strong>
+                    </div>
+                    <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 12px; text-align: center;">
+                        <span style="font-size: 0.75rem; color: #991b1b; font-weight: 600; text-transform: uppercase;">Crédito</span>
+                        <strong id="total-lub-credit" style="display: block; font-size: 1.1rem; color: #991b1b; margin-top: 2px;">$0.00</strong>
+                    </div>
                 </div>
             </div>
             <div class="table-container">
