@@ -504,6 +504,41 @@
         </div>
     </div>
 
+    <!-- Modal para Enviar Mensaje por WhatsApp -->
+    <div id="whatsapp-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2 style="margin-bottom: 1rem; font-family: 'Montserrat', sans-serif; font-weight: 800; color: var(--dark-bg);">Enviar Notificación</h2>
+            <form id="whatsapp-form">
+                <input type="hidden" id="wa-reception-id">
+                
+                <div class="form-group">
+                    <label>Teléfono de Contacto</label>
+                    <input type="text" id="wa-phone" required placeholder="Ej: 5493416123456">
+                    <small style="color: var(--muted-foreground); font-size: 0.75rem; display: block; margin-top: 4px;">Debe incluir código de área sin el 15 (ej: 549 para Argentina, seguido de código de área y número).</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Plantilla de Notificación</label>
+                    <select id="wa-template-select" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px; margin-bottom: 12px;" onchange="updateWhatsAppMessageTemplate()">
+                        <option value="ingreso">🔧 Ingreso a Taller (Recepción)</option>
+                        <option value="presupuesto">📋 Presupuesto Listo</option>
+                        <option value="entrega">🚗 Listo para Retirar (Entrega)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Mensaje a Enviar</label>
+                    <textarea id="wa-message-text" rows="6" style="width:100%; border-radius:var(--radius); border:1px solid var(--border); padding:10px; font-family: 'Outfit', sans-serif; font-size: 0.9rem; resize: vertical; margin-bottom: 15px;" required></textarea>
+                </div>
+
+                <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-cancel" onclick="closeWhatsAppModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-save" style="background-color: #25d366; color: white;">🚀 Enviar por WhatsApp</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>

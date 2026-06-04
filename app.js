@@ -34,7 +34,6 @@ const DEFAULT_VEHICLES = {
 
 let VEHICLE_DB = { ...DEFAULT_VEHICLES };
 let editingIndex = null;
-
 async function init() {
     // 1. Inicializar Supabase inmediatamente para evitar que sea null
     try {
@@ -55,6 +54,7 @@ async function init() {
     setupMannManualImport();
     setupServiceModal();
     setupReception();
+    setupWhatsApp();
     
     // 3. Cargar archivos y almacenamiento local de forma segura
     try { loadWegaExcel(); } catch (e) { console.warn(e); }
@@ -1051,7 +1051,19 @@ function copyBudgetToWhatsApp() {
     const items = document.getElementById('budget-items').innerText;
     const total = document.getElementById('budget-total').innerText;
     const text = `📋 *Presupuesto Service - Taller Ro*\n🚗 *Vehículo:* ${name}\n\n${items}\n💰 *${total}*\n\n_Precios sujetos a cambios._`;
-    navigator.clipboard.writeText(text).then(() => alert("¡Copiado para WhatsApp!"));
+    
+    navigator.clipboard.writeText(text).then(() => {
+        const phone = prompt("¡Presupuesto copiado al portapapeles!\n\nSi deseas enviarlo directamente por WhatsApp, ingresa el número del cliente (ej: 5493416123456) y presiona Aceptar. Si solo querías copiarlo, presiona Cancelar:", "");
+        if (phone) {
+            const cleanPhone = phone.replace(/\D/g, '');
+            let formattedPhone = cleanPhone;
+            if (cleanPhone.length === 10) {
+                formattedPhone = '549' + cleanPhone;
+            }
+            const url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        }
+    });
 }
 
 async function loadCustomVehicles() {
@@ -1169,7 +1181,10 @@ function renderReceptions(filter = '') {
             <td>${methodBadge}</td>
             <td>${fDelivery}</td>
             <td>
-                <button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:2px 5px;" onclick="openEditReceptionModal('${r.id}')">✏️</button>
+                <div style="display: flex; gap: 4px; align-items: center;">
+                    <button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:3px 6px; cursor:pointer;" onclick="openEditReceptionModal('${r.id}')" title="Editar">✏️</button>
+                    <button style="background:#25d366; color:white; border-radius:4px; border:none; padding:3px 6px; cursor:pointer; font-weight:bold;" onclick="openWhatsAppModal('${r.id}')" title="Notificar por WhatsApp">💬</button>
+                </div>
             </td>
         `;
         tbody.appendChild(tr);
@@ -1307,6 +1322,88 @@ function setupReception() {
         
         await saveReception(rec);
         closeReceptionModal();
+    };
+}
+
+// --- WHATSAPP NOTIFICATIONS FOR RECEPTIONS ---
+function openWhatsAppModal(id) {
+    const rec = receptions.find(r => r.id === id);
+    if (!rec) return;
+    
+    document.getElementById('wa-reception-id').value = rec.id;
+    
+    // Clean and prefill phone number (keep only digits)
+    let rawContact = rec.contact || '';
+    let cleanPhone = rawContact.replace(/\D/g, ''); 
+    
+    // Auto-prefill country code for Argentina (549) if it has 10 digits
+    if (cleanPhone.length === 10) {
+        cleanPhone = '549' + cleanPhone;
+    } else if (cleanPhone.length === 11 && cleanPhone.startsWith('9')) {
+        cleanPhone = '54' + cleanPhone;
+    } else if (cleanPhone.length === 13 && cleanPhone.startsWith('5415')) {
+        cleanPhone = '549' + cleanPhone.substring(4);
+    }
+    
+    document.getElementById('wa-phone').value = cleanPhone;
+    
+    // Set default template based on reception status
+    const select = document.getElementById('wa-template-select');
+    if (rec.deliveryStatus === 'Entregado') {
+        select.value = 'entrega';
+    } else if (rec.budgetStatus === 'Presupuestado') {
+        select.value = 'presupuesto';
+    } else {
+        select.value = 'ingreso';
+    }
+    
+    updateWhatsAppMessageTemplate();
+    document.getElementById('whatsapp-modal').classList.remove('hidden');
+}
+
+function closeWhatsAppModal() {
+    document.getElementById('whatsapp-modal').classList.add('hidden');
+}
+
+function updateWhatsAppMessageTemplate() {
+    const id = document.getElementById('wa-reception-id').value;
+    const rec = receptions.find(r => r.id === id);
+    if (!rec) return;
+    
+    const templateType = document.getElementById('wa-template-select').value;
+    const clientName = rec.clientName || 'Cliente';
+    const turboDetails = rec.turboDetails || 'Turbo';
+    const safeCost = parseFloat(rec.price) || 0;
+    const fCost = `$${safeCost.toFixed(2)}`;
+    const fIngress = rec.dateIngress ? rec.dateIngress.split('-').reverse().join('/') : '';
+    const paymentStatus = rec.paymentStatus === 'Pagado' ? 'PAGADO' : 'PENDIENTE DE PAGO';
+    
+    let text = '';
+    
+    if (templateType === 'ingreso') {
+        text = `🔧 *Ingreso de Turbo - Taller Ro*\n\nHola *${clientName}*, te confirmamos que tu turbo *${turboDetails}* ingresó al taller en la fecha *${fIngress}*.\n\nEn breve nuestro equipo técnico comenzará con la revisión para realizar el diagnóstico y presupuesto. Nos contactaremos con vos apenas tengamos novedades.\n\n¡Muchas gracias!`;
+    } else if (templateType === 'presupuesto') {
+        text = `📋 *Presupuesto Listo - Taller Ro*\n\nHola *${clientName}*, ya tenemos el diagnóstico de tu turbo *${turboDetails}*.\n\n💰 *Costo de reparación:* ${fCost}\n💳 *Estado de pago:* ${paymentStatus}\n\nPor favor, confirmanos si procedemos con la reparación del mismo.\n\nCualquier duda quedamos a disposición. ¡Saludos!`;
+    } else if (templateType === 'entrega') {
+        const paymentInfo = rec.paymentStatus === 'Pagado' ? 'El mismo ya se encuentra registrado como PAGADO.' : `Costo: ${fCost} (${paymentStatus}).`;
+        text = `🚗 *Listo para Retirar - Taller Ro*\n\nHola *${clientName}*, te informamos que el trabajo en tu turbo *${turboDetails}* ha sido completado con éxito.\n\nYa podés pasar a retirarlo por el taller.\n\nℹ️ *Información:* ${paymentInfo}\n\n¡Te esperamos! Saludos del equipo de Taller Ro.`;
+    }
+    
+    document.getElementById('wa-message-text').value = text;
+}
+
+function setupWhatsApp() {
+    const form = document.getElementById('whatsapp-form');
+    if (!form) return;
+    form.onsubmit = (e) => {
+        e.preventDefault();
+        const phone = document.getElementById('wa-phone').value.trim();
+        const text = document.getElementById('wa-message-text').value;
+        
+        // Open WhatsApp Web
+        const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+        closeWhatsAppModal();
     };
 }
 
