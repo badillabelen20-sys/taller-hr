@@ -345,11 +345,24 @@ function renderSales() {
         
         const paymentBadge = `<span class="payment-badge ${badgeClass}">${paymentMethod}</span>`;
         
-        tr.innerHTML = `<td>${d}</td><td><strong>${displayName}</strong></td><td>${paymentBadge}</td><td>$${safePrice.toFixed(2)}</td><td><button style="color:red; border:none; background:none; cursor:pointer;" onclick="deleteSale('${s.id}', '${s.date}')">Anular</button></td>`;
-        if (s.category === 'turbos') { 
+        if (s.category === 'turbos') {
+            const item = inventory.turbos.find(t => t.id === s.item_id);
+            const type = item ? (item.type || '-') : '-';
+            const code = s.item_id || '-';
+            
+            tr.innerHTML = `
+                <td>${d}</td>
+                <td>${type}</td>
+                <td><strong>${code}</strong></td>
+                <td>${displayName}</td>
+                <td>${paymentBadge}</td>
+                <td>$${safePrice.toFixed(2)}</td>
+                <td><button style="color:red; border:none; background:none; cursor:pointer;" onclick="deleteSale('${s.id}', '${s.date}')">Anular</button></td>
+            `;
             totT += safePrice; 
             tT.appendChild(tr); 
         } else { 
+            tr.innerHTML = `<td>${d}</td><td><strong>${displayName}</strong></td><td>${paymentBadge}</td><td>$${safePrice.toFixed(2)}</td><td><button style="color:red; border:none; background:none; cursor:pointer;" onclick="deleteSale('${s.id}', '${s.date}')">Anular</button></td>`;
             totL += safePrice; 
             if (paymentMethod === 'Efectivo') lubCash += safePrice;
             else if (paymentMethod === 'Transferencia') lubTransfer += safePrice;
