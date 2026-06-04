@@ -262,13 +262,27 @@ function guessPaymentMethod(sale) {
         qty = parseInt(match[1], 10);
     }
     
-    const baseTotal = item.price * qty;
-    if (baseTotal <= 0) return '-';
+    const baseTotalCurrent = item.price * qty;
+    if (baseTotalCurrent <= 0) return '-';
     
-    const ratio = sale.price / baseTotal;
-    if (Math.abs(ratio - 1.0) < 0.02) return 'Efectivo';
-    if (Math.abs(ratio - DEBIT_PERCENT) < 0.02) return 'Débito';
-    if (Math.abs(ratio - CREDIT_PERCENT) < 0.02) return 'Crédito';
+    // 1. Probar con el precio actual (para ventas recientes o productos excluidos del aumento)
+    const ratioCurrent = sale.price / baseTotalCurrent;
+    if (Math.abs(ratioCurrent - 1.0) < 0.02) return 'Efectivo';
+    if (Math.abs(ratioCurrent - DEBIT_PERCENT) < 0.02) return 'Débito';
+    if (Math.abs(ratioCurrent - CREDIT_PERCENT) < 0.02) return 'Crédito';
+    
+    // 2. Probar con el precio anterior (dividiendo por 1.21 para productos que sufrieron el aumento)
+    const nameUpper = item.name.toUpperCase();
+    const isDexron = nameUpper.includes("VALVOLINE DEXRON3 ATF HIDRAULICO") || nameUpper.includes("DEXRON3");
+    const is5w30c3 = nameUpper.includes("VALVOLINE 5W30 ACEA C3") || (nameUpper.includes("5W30") && nameUpper.includes("C3"));
+    
+    if (!isDexron && !is5w30c3) {
+        const baseTotalOld = (item.price / 1.21) * qty;
+        const ratioOld = sale.price / baseTotalOld;
+        if (Math.abs(ratioOld - 1.0) < 0.02) return 'Efectivo';
+        if (Math.abs(ratioOld - DEBIT_PERCENT) < 0.02) return 'Débito';
+        if (Math.abs(ratioOld - CREDIT_PERCENT) < 0.02) return 'Crédito';
+    }
     
     return 'Efectivo';
 }
