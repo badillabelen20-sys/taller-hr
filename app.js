@@ -6,6 +6,7 @@ let client = null;
 let inventory = { turbos: [], lubricentro: [] };
 let sales = [];
 let receptions = [];
+let expenses = [];
 let currentUser = null;
 const DEBIT_PERCENT = 1.06;
 const CREDIT_PERCENT = 1.096;
@@ -54,6 +55,7 @@ async function init() {
     setupMannManualImport();
     setupServiceModal();
     setupReception();
+    setupExpense();
     setupWhatsApp();
     setupVehiclesExcelImport();
     setupBudgetSuggestions();
@@ -164,6 +166,19 @@ async function loadFromCloud() {
                 })
                 .filter(r => r !== null);
             
+            // Cargar gastos
+            expenses = inv
+                .filter(i => i.category === 'expense')
+                .map(row => {
+                    try {
+                        return JSON.parse(row.vehicle);
+                    } catch (err) {
+                        console.error("Error parsing expense:", err, row.vehicle);
+                        return null;
+                    }
+                })
+                .filter(e => e !== null);
+            
             // Limpiar duplicados de ventas automáticamente en la vista local
             const uniqueSales = [];
             const seenSales = new Set();
@@ -198,6 +213,7 @@ async function saveData() {
     localStorage.setItem('taller_inventory', JSON.stringify(inventory));
     localStorage.setItem('taller_sales', JSON.stringify(sales));
     localStorage.setItem('taller_receptions', JSON.stringify(receptions));
+    localStorage.setItem('taller_expenses', JSON.stringify(expenses));
     await syncWithCloud();
 }
 
@@ -206,15 +222,17 @@ function loadFromLocal() {
         const inv = localStorage.getItem('taller_inventory');
         const sls = localStorage.getItem('taller_sales');
         const recs = localStorage.getItem('taller_receptions');
+        const exps = localStorage.getItem('taller_expenses');
         if (inv) inventory = JSON.parse(inv);
         if (sls) sales = JSON.parse(sls);
         if (recs) receptions = JSON.parse(recs);
+        if (exps) expenses = JSON.parse(exps);
     } catch (e) {
         console.warn("Local storage parse error:", e);
     }
 }
 
-function renderAll() { renderTurbos(); renderLubricentro(); renderSales(); renderReceptions(); updateOilSelect(); renderDashboard(); }
+function renderAll() { renderTurbos(); renderLubricentro(); renderSales(); renderReceptions(); renderExpenses(); updateOilSelect(); renderDashboard(); }
 
 function renderTurbos(filter = '') {
     const tbody = document.querySelector('#table-turbos tbody'); if (!tbody) return;
@@ -1908,6 +1926,208 @@ function setupReception() {
     };
 }
 
+// --- CONTROL DE GASTOS ---
+function renderExpenses(filter = '') {
+    const tbody = document.querySelector('#table-expense tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    // Calculate and display stats
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const todayStr = today.toISOString().split('T')[0];
+    const currentYearMonth = `${yyyy}-${mm}`;
+    
+    const prevMonthDate = new Date(yyyy, today.getMonth() - 1, 1);
+    const prevY = prevMonthDate.getFullYear();
+    const prevM = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+    const prevYearMonth = `${prevY}-${prevM}`;
+    
+    let sumToday = 0;
+    let sumMonth = 0;
+    let sumPrevMonth = 0;
+    
+    expenses.forEach(e => {
+        const amt = parseFloat(e.amount) || 0;
+        const eDate = e.date || '';
+        if (eDate === todayStr) {
+            sumToday += amt;
+        }
+        if (eDate.startsWith(currentYearMonth)) {
+            sumMonth += amt;
+        }
+        if (eDate.startsWith(prevYearMonth)) {
+            sumPrevMonth += amt;
+        }
+    });
+    
+    const elToday = document.getElementById('expense-sum-today');
+    const elMonth = document.getElementById('expense-sum-month');
+    const elPrevMonth = document.getElementById('expense-sum-prev-month');
+    
+    if (elToday) elToday.innerText = `$${sumToday.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elMonth) elMonth.innerText = `$${sumMonth.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elPrevMonth) elPrevMonth.innerText = `$${sumPrevMonth.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
+    // Filter and render list
+    const filtered = expenses.filter(e => {
+        if (!filter) return true;
+        const q = filter.toLowerCase();
+        return (e.name || '').toLowerCase().includes(q) ||
+               (e.category || '').toLowerCase().includes(q) ||
+               (e.notes || '').toLowerCase().includes(q);
+    });
+    
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(e => {
+        const tr = document.createElement('tr');
+        const fDate = e.date ? e.date.split('-').reverse().join('/') : '-';
+        const amt = parseFloat(e.amount) || 0;
+        
+        let methodClass = 'badge-other';
+        if (e.paymentMethod === 'Efectivo') methodClass = 'badge-cash';
+        else if (e.paymentMethod === 'Transferencia') methodClass = 'badge-transfer';
+        else if (e.paymentMethod === 'Débito') methodClass = 'badge-debit';
+        else if (e.paymentMethod === 'Crédito') methodClass = 'badge-credit';
+        
+        const methodBadge = e.paymentMethod ? `<span class="payment-badge ${methodClass}">${e.paymentMethod}</span>` : '-';
+        
+        tr.innerHTML = `
+            <td>${fDate}</td>
+            <td><strong>${e.name || ''}</strong></td>
+            <td><span class="status-badge" style="background-color: #64748b; color: white;">${e.category || ''}</span></td>
+            <td style="color: #991b1b; font-weight: bold;">$${amt.toFixed(2)}</td>
+            <td>${methodBadge}</td>
+            <td style="font-size: 0.85rem; color: var(--muted-foreground);">${e.notes || ''}</td>
+            <td>
+                <button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:3px 6px; cursor:pointer;" onclick="openEditExpenseModal('${e.id}')" title="Editar">✏️</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function openExpenseModal() {
+    document.getElementById('expense-id').value = 'exp_' + Date.now();
+    document.getElementById('expense-modal-title').innerText = "Nuevo Gasto / Compra";
+    document.getElementById('expense-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('expense-name').value = '';
+    document.getElementById('expense-category').value = 'Proveedor';
+    document.getElementById('expense-amount').value = '';
+    document.getElementById('expense-payment-method').value = 'Efectivo';
+    document.getElementById('expense-notes').value = '';
+    
+    const deleteBtn = document.getElementById('btn-delete-expense');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    
+    document.getElementById('expense-modal').classList.remove('hidden');
+}
+
+function openEditExpenseModal(id) {
+    const exp = expenses.find(e => e.id === id);
+    if (!exp) return;
+    
+    document.getElementById('expense-id').value = exp.id;
+    document.getElementById('expense-modal-title').innerText = "Editar Gasto / Compra";
+    document.getElementById('expense-date').value = exp.date || '';
+    document.getElementById('expense-name').value = exp.name || '';
+    document.getElementById('expense-category').value = exp.category || 'Proveedor';
+    document.getElementById('expense-amount').value = exp.amount || '';
+    document.getElementById('expense-payment-method').value = exp.paymentMethod || 'Efectivo';
+    document.getElementById('expense-notes').value = exp.notes || '';
+    
+    const deleteBtn = document.getElementById('btn-delete-expense');
+    if (deleteBtn) deleteBtn.style.display = 'inline-flex';
+    
+    document.getElementById('expense-modal').classList.remove('hidden');
+}
+
+function closeExpenseModal() {
+    document.getElementById('expense-modal').classList.add('hidden');
+}
+
+async function saveExpense(exp) {
+    const idx = expenses.findIndex(e => e.id === exp.id);
+    if (idx > -1) {
+        expenses[idx] = exp;
+    } else {
+        expenses.push(exp);
+    }
+    
+    // Save locally
+    localStorage.setItem('taller_expenses', JSON.stringify(expenses));
+    
+    // Save to Supabase
+    if (client && currentUser) {
+        try {
+            const row = {
+                id: exp.id,
+                category: 'expense',
+                name: exp.name,
+                price: exp.amount,
+                vehicle: JSON.stringify(exp)
+            };
+            await client.from('datos_taller_ro').delete().eq('id', exp.id).eq('category', 'expense');
+            await client.from('datos_taller_ro').insert([row]);
+        } catch (e) {
+            console.error("Error al guardar gasto en la nube:", e);
+        }
+    }
+    
+    renderAll();
+}
+
+async function deleteExpense() {
+    const id = document.getElementById('expense-id').value;
+    if (!id) return;
+    
+    const idx = expenses.findIndex(e => e.id === id);
+    if (idx > -1) {
+        const exp = expenses[idx];
+        if (confirm(`¿Estás seguro de que deseas eliminar el gasto "${exp.name}"?`)) {
+            expenses.splice(idx, 1);
+            localStorage.setItem('taller_expenses', JSON.stringify(expenses));
+            
+            if (client && currentUser) {
+                try {
+                    await client.from('datos_taller_ro').delete().eq('id', id).eq('category', 'expense');
+                } catch (e) {
+                    console.error("Error al borrar gasto en la nube:", e);
+                }
+            }
+            
+            renderAll();
+            closeExpenseModal();
+        }
+    }
+}
+
+function setupExpense() {
+    const searchInput = document.getElementById('search-expense');
+    if (searchInput) {
+        searchInput.oninput = (e) => renderExpenses(e.target.value);
+    }
+    
+    const form = document.getElementById('expense-form');
+    if (!form) return;
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        
+        const exp = {
+            id: document.getElementById('expense-id').value,
+            date: document.getElementById('expense-date').value,
+            name: document.getElementById('expense-name').value,
+            category: document.getElementById('expense-category').value,
+            amount: parseFloat(document.getElementById('expense-amount').value) || 0,
+            paymentMethod: document.getElementById('expense-payment-method').value,
+            notes: document.getElementById('expense-notes').value
+        };
+        
+        await saveExpense(exp);
+        closeExpenseModal();
+    };
+}
+
 // --- ALERTA DE STOCK Y PEDIDO DE REPOSICION ---
 let stockOrderItems = [];
 
@@ -2237,6 +2457,47 @@ function renderDashboard() {
     });
     const avgDays = deliveredItems.length > 0 ? (totalDays / deliveredItems.length).toFixed(1) : 0;
     document.getElementById('dash-rec-avg-days').innerText = `${avgDays} días`;
+
+    // Calculate monthly balance
+    let expensesMonth = 0;
+    expenses.forEach(e => {
+        if (e.date) {
+            const eDate = new Date(e.date + 'T12:00:00');
+            if (eDate.getMonth() === currentMonth && eDate.getFullYear() === currentYear) {
+                expensesMonth += parseFloat(e.amount) || 0;
+            }
+        }
+    });
+
+    let receptionsMonth = 0;
+    receptions.forEach(r => {
+        if (r.paymentStatus === 'Pagado') {
+            const rDateStr = r.dateDelivery || r.dateIngress || '';
+            if (rDateStr) {
+                const rDate = new Date(rDateStr + 'T12:00:00');
+                if (rDate.getMonth() === currentMonth && rDate.getFullYear() === currentYear) {
+                    receptionsMonth += parseFloat(r.price) || 0;
+                }
+            }
+        }
+    });
+
+    const totalIngresos = salesMonth + receptionsMonth;
+    const balance = totalIngresos - expensesMonth;
+
+    const elBalance = document.getElementById('dash-balance-month');
+    const elBalanceDetails = document.getElementById('dash-balance-details');
+    if (elBalance) {
+        elBalance.innerText = `$${balance.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        if (balance >= 0) {
+            elBalance.style.color = '#10b981';
+        } else {
+            elBalance.style.color = '#ef4444';
+        }
+    }
+    if (elBalanceDetails) {
+        elBalanceDetails.innerText = `Ingresos: $${totalIngresos.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} | Gastos: $${expensesMonth.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    }
 }
 
 // --- DECODIFICADOR DE DETALLES DE SERVICES MANUALES ---

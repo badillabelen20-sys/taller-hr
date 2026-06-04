@@ -42,6 +42,7 @@
             <button class="tab-btn" data-tab="ventas-turbos">Libro Turbos</button>
             <button class="tab-btn" data-tab="ventas-lubricentro">Libro Lubricentro</button>
             <button class="tab-btn" data-tab="recepcion">Recepcion de Turbos</button>
+            <button class="tab-btn" data-tab="gastos">💸 Gastos</button>
             <button class="tab-btn" data-tab="presupuesto">📋 Presupuesto</button>
             <button id="sync-btn" class="btn btn-sell" style="background: #10b981; margin-left: 10px;" onclick="syncWithCloud(true)">🔄 Sincronizar Nube</button>
             <button id="logout-btn" class="btn-logout" title="Cerrar Sesión">❌</button>
@@ -99,6 +100,14 @@
                     <div id="dash-low-stock" style="font-size: 2rem; font-weight: 800; color: var(--destructive); margin-top: 5px;">0</div>
                     <div style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 5px;">Artículos para reposición</div>
                     <div style="position: absolute; right: 15px; bottom: 15px; font-size: 2rem; opacity: 0.1;">⚠️</div>
+                </div>
+
+                <!-- Tarjeta 5: Balance del Mes -->
+                <div class="dash-card" style="background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); position: relative; overflow: hidden;">
+                    <div style="font-size: 0.85rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">Balance del Mes</div>
+                    <div id="dash-balance-month" style="font-size: 2rem; font-weight: 800; color: #10b981; margin-top: 5px;">$0.00</div>
+                    <div id="dash-balance-details" style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 5px;">Ingresos vs Gastos</div>
+                    <div style="position: absolute; right: 15px; bottom: 15px; font-size: 2rem; opacity: 0.1;">⚖️</div>
                 </div>
             </div>
 
@@ -469,6 +478,53 @@
                 </table>
             </div>
         </section>
+
+        <!-- Tab Gastos -->
+        <section id="gastos" class="tab-content">
+            <div class="tab-header" style="border-bottom: none; padding-bottom: 1rem;">
+                <h2>Registro de Gastos</h2>
+                <div>
+                    <button class="btn btn-add" onclick="openExpenseModal()">+ Nuevo Gasto</button>
+                </div>
+            </div>
+            
+            <!-- Resumen de gastos mensuales -->
+            <div class="sales-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; width: 100%; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 15px 2rem; background: #f8fafc; margin-bottom: 1rem;">
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; text-align: center; box-shadow: var(--shadow-sm);">
+                    <span style="font-size: 0.75rem; color: #991b1b; font-weight: 600; text-transform: uppercase;">Gastado Hoy</span>
+                    <strong id="expense-sum-today" style="display: block; font-size: 1.15rem; color: #991b1b; margin-top: 2px;">$0.00</strong>
+                </div>
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; text-align: center; box-shadow: var(--shadow-sm);">
+                    <span style="font-size: 0.75rem; color: #991b1b; font-weight: 600; text-transform: uppercase;">Gastado (Mes Actual)</span>
+                    <strong id="expense-sum-month" style="display: block; font-size: 1.15rem; color: #991b1b; margin-top: 2px;">$0.00</strong>
+                </div>
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; text-align: center; box-shadow: var(--shadow-sm);">
+                    <span style="font-size: 0.75rem; color: #475569; font-weight: 600; text-transform: uppercase;">Gastado (Mes Anterior)</span>
+                    <strong id="expense-sum-prev-month" style="display: block; font-size: 1.15rem; color: #475569; margin-top: 2px;">$0.00</strong>
+                </div>
+            </div>
+
+            <input type="text" class="search-bar" id="search-expense" placeholder="Buscar por concepto, proveedor, categoría o notas..." style="margin-top: 0.5rem; margin-bottom: 1.5rem;">
+            
+            <div class="table-container">
+                <table id="table-expense">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Concepto / Proveedor</th>
+                            <th>Categoría</th>
+                            <th>Monto</th>
+                            <th>Medio de Pago</th>
+                            <th>Notas</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Filas de gastos generadas por JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </main>
 
     <!-- Modal Nuevo Vehículo -->
@@ -775,6 +831,68 @@
                 <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
                     <button type="button" class="btn btn-cancel" onclick="closeWhatsAppModal()">Cancelar</button>
                     <button type="submit" class="btn btn-save" style="background-color: #25d366; color: white;">🚀 Enviar por WhatsApp</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Nuevo/Editar Gasto -->
+    <div id="expense-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2 id="expense-modal-title">Nuevo Gasto / Compra</h2>
+            <form id="expense-form">
+                <input type="hidden" id="expense-id">
+                
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1.2;">
+                        <label>Fecha</label>
+                        <input type="date" id="expense-date" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Categoría</label>
+                        <select id="expense-category" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                            <option value="Proveedor">Proveedor</option>
+                            <option value="Gasto Chico">Gasto Chico</option>
+                            <option value="Servicios">Servicios</option>
+                            <option value="Impuestos">Impuestos</option>
+                            <option value="Sueldos">Sueldos</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Concepto / Proveedor</label>
+                    <input type="text" id="expense-name" placeholder="Ej: Compra filtros Wega, Pago luz, etc." required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Monto ($)</label>
+                        <input type="number" id="expense-amount" step="0.01" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Medio de Pago</label>
+                        <select id="expense-payment-method" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia">Transferencia</option>
+                            <option value="Débito">Débito</option>
+                            <option value="Crédito">Crédito</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Notas Adicionales (Opcional)</label>
+                    <input type="text" id="expense-notes" placeholder="Ej: Nro Factura, observaciones...">
+                </div>
+
+                <div class="modal-actions" style="display: flex; width: 100%; justify-content: space-between; gap: 0.5rem; margin-top: 1.5rem;">
+                    <button type="button" id="btn-delete-expense" class="btn" style="background-color: var(--destructive); color: var(--destructive-foreground); margin-right: auto;" onclick="deleteExpense()">🗑️ Eliminar</button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn btn-cancel" onclick="closeExpenseModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-save">Guardar Gasto</button>
+                    </div>
                 </div>
             </form>
         </div>
