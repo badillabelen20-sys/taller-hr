@@ -143,6 +143,25 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Buscador de Historial de Vehículos -->
+            <div class="dashboard-panel" style="background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); margin-bottom: 2rem; margin-top: 1.5rem;">
+                <h3 style="font-family: 'Montserrat', sans-serif; font-weight: 800; margin-bottom: 1rem; color: var(--dark-bg); font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">🔍 Buscador de Historial de Servicios</h3>
+                <p style="color: var(--muted-foreground); font-size: 0.85rem; margin-bottom: 1.25rem;">Busca por Patente del auto, Nombre del cliente o detalles del servicio para ver el historial completo de trabajos realizados.</p>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 1.5rem;">
+                    <input type="text" id="dash-history-search" placeholder="Ingresa Patente (ej: AF123WY), Nombre del Cliente o palabra clave..." style="flex: 1; height: 2.75rem; border-radius: var(--radius); border: 1px solid var(--border); padding: 0 15px; font-size: 0.95rem;">
+                    <button class="btn btn-add" style="height: 2.75rem; padding: 0 25px; font-weight: bold;" onclick="searchVehicleHistory()">🔍 Buscar Historial</button>
+                </div>
+
+                <div id="dash-history-results" class="hidden" style="background: var(--muted); border-radius: var(--radius); padding: 1.25rem; border: 1px solid var(--border);">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 1rem; color: var(--foreground);" id="dash-history-title">Resultados de la búsqueda</h4>
+                    
+                    <div id="dash-history-timeline" style="display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto; padding-right: 5px;">
+                        <!-- Línea de tiempo generada dinámicamente -->
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Tab Turbos -->

@@ -646,6 +646,13 @@ function setupTabs() {
 function setupSearch() {
     const st = document.getElementById('search-turbos'), sl = document.getElementById('search-lubricentro');
     if (st) st.oninput = (e) => renderTurbos(e.target.value); if (sl) sl.oninput = (e) => renderLubricentro(e.target.value);
+    
+    const sh = document.getElementById('dash-history-search');
+    if (sh) {
+        sh.onkeyup = (e) => {
+            if (e.key === 'Enter') searchVehicleHistory();
+        };
+    }
 }
 
 function changeStock(cat, idx, amt) { if (inventory[cat][idx].stock + amt >= 0) { inventory[cat][idx].stock += amt; saveData(); renderAll(); } }
@@ -1678,6 +1685,164 @@ function renderDashboard() {
     });
     const avgDays = deliveredItems.length > 0 ? (totalDays / deliveredItems.length).toFixed(1) : 0;
     document.getElementById('dash-rec-avg-days').innerText = `${avgDays} días`;
+}
+
+// --- BUSCADOR DE HISTORIAL DE VEHICULOS ---
+function searchVehicleHistory() {
+    const input = document.getElementById('dash-history-search');
+    const resultsContainer = document.getElementById('dash-history-results');
+    const timeline = document.getElementById('dash-history-timeline');
+    const title = document.getElementById('dash-history-title');
+    
+    if (!input || !resultsContainer || !timeline || !title) return;
+    
+    const query = input.value.trim().toLowerCase();
+    if (!query) {
+        resultsContainer.classList.add('hidden');
+        return;
+    }
+    
+    timeline.innerHTML = '';
+    
+    // Find matches in sales
+    const matchedSales = sales.filter(s => {
+        const name = (s.name || '').toLowerCase();
+        const itemId = (s.item_id || '').toLowerCase();
+        const category = (s.category || '').toLowerCase();
+        return name.includes(query) || itemId.includes(query) || category.includes(query);
+    }).map(s => ({
+        type: 'sale',
+        date: new Date(s.date),
+        rawDate: s.date,
+        category: s.category,
+        name: s.name,
+        price: parseFloat(s.price) || 0,
+        itemId: s.item_id
+    }));
+    
+    // Find matches in receptions
+    const matchedReceptions = receptions.filter(r => {
+        const client = (r.clientName || '').toLowerCase();
+        const contact = (r.contact || '').toLowerCase();
+        const details = (r.turboDetails || '').toLowerCase();
+        const budget = (r.budgetStatus || '').toLowerCase();
+        const delivery = (r.deliveryStatus || '').toLowerCase();
+        const payment = (r.paymentStatus || '').toLowerCase();
+        const method = (r.paymentMethod || '').toLowerCase();
+        
+        return client.includes(query) || 
+               contact.includes(query) || 
+               details.includes(query) || 
+               budget.includes(query) || 
+               delivery.includes(query) || 
+               payment.includes(query) || 
+               method.includes(query);
+    }).map(r => ({
+        type: 'reception',
+        date: r.dateIngress ? new Date(r.dateIngress + 'T00:00:00') : new Date(),
+        rawDate: r.dateIngress,
+        clientName: r.clientName,
+        contact: r.contact,
+        turboDetails: r.turboDetails,
+        budgetStatus: r.budgetStatus,
+        deliveryStatus: r.deliveryStatus,
+        paymentStatus: r.paymentStatus,
+        paymentMethod: r.paymentMethod,
+        price: parseFloat(r.price) || 0,
+        dateDelivery: r.dateDelivery
+    }));
+    
+    // Combine and sort by date descending
+    const combined = [...matchedSales, ...matchedReceptions].sort((a, b) => b.date - a.date);
+    
+    if (combined.length === 0) {
+        title.innerText = `No se encontraron resultados para "${input.value}"`;
+        timeline.innerHTML = `<div style="text-align: center; padding: 15px; color: var(--muted-foreground);">Ningún servicio, venta o recepción coincide con el término de búsqueda.</div>`;
+        resultsContainer.classList.remove('hidden');
+        return;
+    }
+    
+    title.innerText = `Resultados para "${input.value}" (${combined.length} encontrados)`;
+    
+    combined.forEach(item => {
+        const div = document.createElement('div');
+        const dStr = item.date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        
+        if (item.type === 'sale') {
+            let paymentMethod = '-';
+            let displayName = item.name;
+            const methodMatch = item.name.match(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/);
+            if (methodMatch) {
+                paymentMethod = methodMatch[1];
+                displayName = item.name.replace(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/, '');
+            } else {
+                paymentMethod = guessPaymentMethod(item);
+            }
+            
+            let badgeClass = 'badge-other';
+            if (paymentMethod === 'Efectivo') badgeClass = 'badge-cash';
+            else if (paymentMethod === 'Transferencia') badgeClass = 'badge-transfer';
+            else if (paymentMethod === 'Débito') badgeClass = 'badge-debit';
+            else if (paymentMethod === 'Crédito') badgeClass = 'badge-credit';
+            
+            const categoryLabel = item.category === 'turbos' ? 'VENTA TURBO' : 'VENTA LUBRICENTRO';
+            const badgeColor = item.category === 'turbos' ? '#b91c1c' : '#dc2626';
+            
+            div.innerHTML = `
+                <div class="timeline-item" style="background: white; border-left: 4px solid ${badgeColor}; padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border); border-left-width: 4px; box-shadow: var(--shadow-sm); margin-bottom: 8px; text-align: left;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted-foreground); margin-bottom:5px;">
+                        <span>📅 ${dStr}</span>
+                        <span style="background: #fee2e2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.7rem;">${categoryLabel}</span>
+                    </div>
+                    <div style="font-weight: 700; font-size: 0.9rem; color: var(--dark-bg);">${displayName}</div>
+                    <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.8rem; flex-wrap:wrap; gap:5px;">
+                        <span style="color:var(--muted-foreground);">Cobro: <span class="payment-badge ${badgeClass}" style="padding: 1px 6px; font-size: 0.7rem;">${paymentMethod}</span></span>
+                        <strong style="color: var(--foreground); font-size: 0.85rem;">$${item.price.toFixed(2)}</strong>
+                    </div>
+                </div>
+            `;
+        } else {
+            const days = calculateDaysInShop(item.rawDate, item.dateDelivery, item.deliveryStatus);
+            
+            const budgetBadge = `<span class="status-badge ${item.budgetStatus === 'Presupuestado' ? 'badge-budget-presupuestado' : 'badge-budget-no'}" style="padding: 1px 6px; font-size: 0.7rem;">${item.budgetStatus}</span>`;
+            const deliveryBadge = `<span class="status-badge ${item.deliveryStatus === 'Entregado' ? 'badge-delivery-entregado' : 'badge-delivery-no'}" style="padding: 1px 6px; font-size: 0.7rem;">${item.deliveryStatus}</span>`;
+            const paymentBadge = `<span class="status-badge ${item.paymentStatus === 'Pagado' ? 'badge-payment-pagado' : 'badge-payment-no'}" style="padding: 1px 6px; font-size: 0.7rem;">${item.paymentStatus}</span>`;
+            
+            let methodClass = 'badge-other';
+            if (item.paymentMethod === 'Efectivo') methodClass = 'badge-cash';
+            else if (item.paymentMethod === 'Transferencia') methodClass = 'badge-transfer';
+            else if (item.paymentMethod === 'Débito') methodClass = 'badge-debit';
+            else if (item.paymentMethod === 'Crédito') methodClass = 'badge-credit';
+            const methodBadge = item.paymentMethod && item.paymentMethod !== '-' ? `<span class="payment-badge ${methodClass}" style="padding: 1px 6px; font-size: 0.7rem;">${item.paymentMethod}</span>` : '-';
+            
+            const rawDateObj = item.rawDate ? new Date(item.rawDate + 'T00:00:00') : new Date();
+            const dateStrFormatted = rawDateObj.toLocaleDateString('es-AR');
+            
+            div.innerHTML = `
+                <div class="timeline-item" style="background: white; border-left: 4px solid #d97706; padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border); border-left-width: 4px; box-shadow: var(--shadow-sm); margin-bottom: 8px; text-align: left;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted-foreground); margin-bottom:5px;">
+                        <span>📅 ${dateStrFormatted} (Ingreso)</span>
+                        <span style="background: #fffbeb; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.7rem;">TALLER DE TURBOS</span>
+                    </div>
+                    <div style="font-weight: 700; font-size: 0.9rem; color: var(--dark-bg);">${item.turboDetails}</div>
+                    <div style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 3px;">
+                        Cliente: <strong>${item.clientName}</strong> ${item.contact ? `| Tel: ${item.contact}` : ''}
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:8px;">
+                        ${budgetBadge} ${deliveryBadge} ${paymentBadge} ${item.paymentMethod && item.paymentMethod !== '-' ? methodBadge : ''}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.8rem; border-top:1px dashed var(--border); padding-top:6px; margin-top:6px;">
+                        <span style="color:var(--muted-foreground);">Taller: <strong>${days} días</strong> ${item.dateDelivery ? `(Entregado: ${new Date(item.dateDelivery + 'T00:00:00').toLocaleDateString('es-AR')})` : ''}</span>
+                        <strong style="color: var(--foreground); font-size: 0.85rem;">$${item.price.toFixed(2)}</strong>
+                    </div>
+                </div>
+            `;
+        }
+        
+        timeline.appendChild(div);
+    });
+    
+    resultsContainer.classList.remove('hidden');
 }
 
 async function apply21PercentIncrease() {
