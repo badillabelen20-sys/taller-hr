@@ -55,6 +55,8 @@ async function init() {
     setupServiceModal();
     setupReception();
     setupWhatsApp();
+    setupVehiclesExcelImport();
+    setupBudgetSuggestions();
     
     // 3. Cargar archivos y almacenamiento local de forma segura
     try { loadWegaExcel(); } catch (e) { console.warn(e); }
@@ -871,6 +873,228 @@ function updateOilSelect() {
     });
 }
 
+let currentVehicleConfig = null;
+let currentActiveBrand = null;
+
+// --- IMPORTADOR DE EXCEL DE VEHÍCULOS ---
+function setupVehiclesExcelImport() {
+    const input = document.getElementById('import-vehicles-excel');
+    if (!input) return;
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const data = new Uint8Array(event.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                // Buscar pestaña que corresponda a presupuestos o stock
+                const firstSheetName = workbook.SheetNames.find(name => 
+                    name.toLowerCase().includes('presupuesto') || 
+                    name.toLowerCase().includes('control') || 
+                    name.toLowerCase().includes('stock')
+                ) || workbook.SheetNames[0];
+                
+                const sheet = workbook.Sheets[firstSheetName];
+                const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                
+                if (!raw || raw.length === 0) {
+                    alert("El archivo Excel está vacío.");
+                    return;
+                }
+                
+                // Encontrar fila de encabezados
+                let headerIdx = -1;
+                for (let i = 0; i < Math.min(raw.length, 15); i++) {
+                    const row = raw[i];
+                    if (row && row.some(cell => cell && cell.toString().toLowerCase().trim() === 'marca') &&
+                        row.some(cell => cell && cell.toString().toLowerCase().trim() === 'modelo')) {
+                        headerIdx = i;
+                        break;
+                    }
+                }
+                if (headerIdx === -1) headerIdx = 0;
+                
+                const dataRows = raw.slice(headerIdx + 1);
+                const vehiclesList = [];
+                let currentVehicle = null;
+                
+                for (let i = 0; i < dataRows.length; i++) {
+                    const row = dataRows[i];
+                    if (!row || row.length === 0) continue;
+                    
+                    const brand = (row[0] || '').toString().trim();
+                    const model = (row[1] || '').toString().trim();
+                    
+                    // Si la marca o el modelo están completos, es un auto nuevo
+                    if (brand || model) {
+                        if (currentVehicle) {
+                            vehiclesList.push(currentVehicle);
+                        }
+                        
+                        const motor = (row[2] || '').toString().trim();
+                        const year = (row[3] || '').toString().trim();
+                        const oilType = (row[9] || '').toString().trim();
+                        const oilLiters = parseFloat(row[10]) || 0;
+                        const labor = parseMoney(row[13]) || 0;
+                        const servicePrice = parseMoney(row[14]) || 0;
+                        
+                        const vehicleBrand = brand || "AUTO";
+                        const vehicleModel = model || "S/M";
+                        const nameString = `${vehicleBrand} ${vehicleModel} ${motor} ${year ? '(' + year + ')' : ''}`.replace(/\s+/g, ' ').trim().toUpperCase();
+                        
+                        currentVehicle = {
+                            id: 'v_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5) + '_' + i,
+                            brand: vehicleBrand,
+                            model: vehicleModel,
+                            motor: motor,
+                            year: year,
+                            oil_type: oilType,
+                            oil_liters: oilLiters,
+                            labor: labor,
+                            service_price: servicePrice,
+                            name: nameString,
+                            filters: [],
+                            filter_brands: {}
+                        };
+                    }
+                    
+                    if (!currentVehicle) continue;
+                    
+                    // Agregar filtros de la marca de esta fila
+                    const filterBrandRaw = (row[12] || '').toString().trim();
+                    if (filterBrandRaw) {
+                        let filterBrandClean = filterBrandRaw.toUpperCase()
+                            .replace(/FILTER/g, '')
+                            .replace(/\(EL KIT\)/g, '')
+                            .trim();
+                            
+                        if (filterBrandClean.includes('WIX')) filterBrandClean = 'WIX';
+                        else if (filterBrandClean.includes('MANN')) filterBrandClean = 'MANN';
+                        else if (filterBrandClean.includes('FRAM')) filterBrandClean = 'FRAM';
+                        else if (filterBrandClean.includes('WEGA')) filterBrandClean = 'WEGA';
+                        
+                        const airCode = (row[4] || '').toString().trim();
+                        const oilCode = (row[5] || '').toString().trim();
+                        const fuelCode = (row[6] || '').toString().trim();
+                        const secondOption = (row[7] || '').toString().trim();
+                        const cabinCode = (row[8] || '').toString().trim();
+                        
+                        if (airCode || oilCode || fuelCode || secondOption || cabinCode) {
+                            currentVehicle.filter_brands[filterBrandClean] = {
+                                air: airCode,
+                                oil: oilCode,
+                                fuel: fuelCode,
+                                second_option: secondOption,
+                                cabin: cabinCode
+                            };
+                            
+                            // Guardar en array plano por compatibilidad
+                            [airCode, oilCode, fuelCode, secondOption, cabinCode].forEach(c => {
+                                if (c && c.toLowerCase() !== 'no lleva' && c.toLowerCase() !== 'no viene en kit' && c.toLowerCase() !== 'ni viene en kit') {
+                                    if (!currentVehicle.filters.includes(c)) {
+                                        currentVehicle.filters.push(c);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+                
+                // Cargar el último auto procesado
+                if (currentVehicle) {
+                    vehiclesList.push(currentVehicle);
+                }
+                
+                if (vehiclesList.length === 0) {
+                    alert("No se encontraron vehículos válidos en el archivo Excel.");
+                    return;
+                }
+                
+                // Guardar localmente y subir a Supabase
+                let importedCount = 0;
+                for (const v of vehiclesList) {
+                    VEHICLE_DB[v.id] = v;
+                    importedCount++;
+                    
+                    if (client && currentUser) {
+                        try {
+                            const dbRow = {
+                                id: v.id,
+                                category: 'vehicle_config',
+                                name: v.name,
+                                price: v.oil_liters,
+                                vehicle: JSON.stringify(v)
+                            };
+                            await client.from('datos_taller_ro').delete().eq('id', v.id).eq('category', 'vehicle_config');
+                            await client.from('datos_taller_ro').insert([dbRow]);
+                        } catch (err) {
+                            console.error("Error al sincronizar vehículo en Supabase:", err);
+                        }
+                    }
+                }
+                
+                alert(`¡Se importaron con éxito ${importedCount} vehículos de la planilla Excel!`);
+                renderAll();
+                
+            } catch (err) {
+                console.error("Error al procesar planilla Excel:", err);
+                alert("Error al procesar el archivo Excel. Asegúrate de que tenga el formato de control de stock.");
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+}
+
+// --- SUGERENCIAS DINÁMICAS DE VEHÍCULOS ---
+function setupBudgetSuggestions() {
+    const searchInput = document.getElementById('budget-search');
+    const suggContainer = document.getElementById('budget-suggestions');
+    if (!searchInput || !suggContainer) return;
+    
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        suggContainer.innerHTML = '';
+        if (query.length < 2) {
+            suggContainer.classList.add('hidden');
+            return;
+        }
+        
+        const matches = Object.values(VEHICLE_DB).filter(v => {
+            return (v.name || '').toLowerCase().includes(query);
+        });
+        
+        if (matches.length > 0) {
+            suggContainer.classList.remove('hidden');
+            matches.slice(0, 15).forEach(v => {
+                const div = document.createElement('div');
+                div.innerHTML = `
+                    <div class="suggestion-title">${v.name}</div>
+                    <div class="suggestion-subtitle">
+                        Aceite: ${v.oil_type || '-'} (${v.oil_liters || 0}L) | 
+                        Mano de Obra: $${(v.labor || 0).toLocaleString('es-AR')} | 
+                        Fijo Service: $${(v.service_price || 0).toLocaleString('es-AR')}
+                    </div>
+                `;
+                div.onclick = () => {
+                    loadVehicleConfig(v);
+                    searchInput.value = v.name;
+                    suggContainer.classList.add('hidden');
+                };
+                suggContainer.appendChild(div);
+            });
+        } else {
+            suggContainer.classList.add('hidden');
+        }
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (e.target !== searchInput && e.target !== suggContainer) {
+            suggContainer.classList.add('hidden');
+        }
+    });
+}
+
 // --- PRESUPUESTO INTERACTIVO ---
 function setupBudget() {
     const btnSearch = document.getElementById('btn-search-budget');
@@ -882,15 +1106,40 @@ function setupBudget() {
         const query = document.getElementById('budget-search').value.toLowerCase().trim();
         if (query.length < 3) return alert("Escriba marca y modelo");
         
-        // Primero buscar en base de datos de modelos guardados
-        const saved = Object.values(VEHICLE_DB).find(v => v.name.toLowerCase().includes(query) || query.includes(v.name.toLowerCase()));
-        if (saved) {
-            alert("¡Modelo encontrado en tus archivos!");
-            loadVehicleConfig(saved);
+        const matches = Object.values(VEHICLE_DB).filter(v => {
+            return v.name.toLowerCase().includes(query) || query.includes(v.name.toLowerCase());
+        });
+        
+        if (matches.length === 1) {
+            loadVehicleConfig(matches[0]);
+            return;
+        } else if (matches.length > 1) {
+            const suggContainer = document.getElementById('budget-suggestions');
+            if (suggContainer) {
+                suggContainer.innerHTML = '';
+                suggContainer.classList.remove('hidden');
+                matches.forEach(v => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <div class="suggestion-title">${v.name}</div>
+                        <div class="suggestion-subtitle">
+                            Aceite: ${v.oil_type || '-'} (${v.oil_liters || 0}L) | 
+                            Mano de Obra: $${(v.labor || 0).toLocaleString('es-AR')} | 
+                            Fijo Service: $${(v.service_price || 0).toLocaleString('es-AR')}
+                        </div>
+                    `;
+                    div.onclick = () => {
+                        loadVehicleConfig(v);
+                        document.getElementById('budget-search').value = v.name;
+                        suggContainer.classList.add('hidden');
+                    };
+                    suggContainer.appendChild(div);
+                });
+            }
             return;
         }
 
-        // Si no está, buscar en WEGA
+        // Si no está en VEHICLE_DB, buscar en WEGA y MANN
         searchInWega(query);
     };
 
@@ -918,6 +1167,16 @@ function searchInWega(query) {
     const resultsContainer = document.getElementById('wega-results-container');
     const optionsGrid = document.getElementById('wega-options');
     optionsGrid.innerHTML = '';
+    
+    // Ocultar selector multimarca si buscamos manualmente en catálogos
+    const selectorContainer = document.getElementById('budget-brand-selector');
+    if (selectorContainer) selectorContainer.classList.add('hidden');
+    
+    const refCard = document.getElementById('budget-excel-reference-card');
+    if (refCard) refCard.style.display = 'none';
+    
+    currentVehicleConfig = null;
+    currentActiveBrand = null;
     
     const categories = {
         oil: { title: "🛢️ Aceite (WEO/WO / HU/WP/W)", filters: [] },
@@ -991,19 +1250,57 @@ function searchInWega(query) {
     resultsContainer.classList.remove('hidden');
 }
 
+function getCatalogSearchLink(brand, code) {
+    if (!code) return '#';
+    const cleanCode = code.trim();
+    const isNoLleva = ['no lleva', 'no viene en kit', 'ni viene en kit', '-'].some(x => cleanCode.toLowerCase().includes(x));
+    if (isNoLleva) return '#';
+    
+    // Devolvemos una búsqueda en Google del código que nos lleva directo al catálogo oficial o distribuidores
+    return `https://www.google.com/search?q=${encodeURIComponent(brand + ' ' + cleanCode)}`;
+}
+
 function selectFilter(type, filter) {
     currentSelection[type] = filter;
-    document.getElementById(`sel-${type}`).innerText = `[${filter.brand}] ${filter.code}`;
+    const container = document.getElementById(`sel-${type}`);
+    if (!container) return;
+    
+    const isNoLleva = !filter || !filter.code || ['no lleva', 'no viene en kit', 'ni viene en kit', '-'].some(x => filter.code.toLowerCase().includes(x));
+    
+    if (isNoLleva) {
+        container.innerHTML = `<span style="color: var(--muted-foreground);">No lleva</span>`;
+        return;
+    }
+    
+    const searchUrl = getCatalogSearchLink(filter.brand, filter.code);
+    const badgeColor = filter.brand === 'MANN' ? '#15803d' : (filter.brand === 'WEGA' ? '#1e3a8a' : '#475569');
+    
+    container.innerHTML = `
+        <span style="font-size: 0.8rem; background: ${badgeColor}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-right: 6px; text-transform: uppercase;">${filter.brand}</span>
+        <a href="${searchUrl}" target="_blank" title="Buscar en catálogo web" style="color: #4f46e5; text-decoration: underline; font-weight: bold;">${filter.code}</a>
+        <a href="${searchUrl}" target="_blank" style="margin-left: 5px; text-decoration: none;" title="Buscar en catálogo">🔍</a>
+    `;
     
     if (type === 'oil') {
         const q = document.getElementById('budget-search').value.toLowerCase();
         const isHeavy = ['hilux','ranger','frontier','amarok','s10','toro'].some(m => q.includes(m));
-        currentSelection.oil_liters = isHeavy ? 8 : 4;
         
-        const oilProd = inventory.lubricentro.find(o => o.name.toLowerCase().includes('5w30') || o.name.toLowerCase().includes('10w40'));
-        if (oilProd) {
-            currentSelection.oil_price_l = oilProd.price;
-            currentSelection.oil_name = oilProd.name;
+        // Solo sobrescribe los litros si no se cargaron previamente desde el perfil del auto
+        if (!currentVehicleConfig) {
+            currentSelection.oil_liters = isHeavy ? 8 : 4;
+            const litersInput = document.getElementById('budget-oil-liters');
+            if (litersInput) litersInput.value = currentSelection.oil_liters;
+        }
+        
+        // Autoseleccionar aceite recomendado si no está seleccionado uno
+        const select = document.getElementById('budget-oil-select');
+        if (select && select.selectedIndex === 0) {
+            const oilProd = inventory.lubricentro.find(o => o.name.toLowerCase().includes('5w30') || o.name.toLowerCase().includes('10w40'));
+            if (oilProd) {
+                select.value = oilProd.id;
+                currentSelection.oil_price_l = oilProd.price;
+                currentSelection.oil_name = oilProd.name;
+            }
         }
     }
     
@@ -1011,7 +1308,152 @@ function selectFilter(type, filter) {
 }
 
 function loadVehicleConfig(v) {
+    currentVehicleConfig = v;
     document.getElementById('budget-search').value = v.name;
+    
+    // Cargar mano de obra y litros de aceite del perfil
+    document.getElementById('budget-labor').value = v.labor || 0;
+    document.getElementById('budget-oil-liters').value = v.oil_liters || 4;
+    
+    // Seleccionar automáticamente el aceite del inventario por tipo
+    const select = document.getElementById('budget-oil-select');
+    if (select && v.oil_type) {
+        let found = false;
+        const queryOil = v.oil_type.toUpperCase().replace(/\s+/g, '');
+        
+        for (let i = 0; i < select.options.length; i++) {
+            const optText = select.options[i].text.toUpperCase().replace(/\s+/g, '');
+            if (optText.includes(queryOil)) {
+                select.selectedIndex = i;
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found) {
+            const mainViscosities = ["5W30", "10W40", "5W40", "15W40"];
+            const matchedVisc = mainViscosities.find(visc => queryOil.includes(visc));
+            if (matchedVisc) {
+                for (let i = 0; i < select.options.length; i++) {
+                    if (select.options[i].text.toUpperCase().includes(matchedVisc)) {
+                        select.selectedIndex = i;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (found) {
+            const oilId = select.value;
+            const oilProd = inventory.lubricentro.find(item => item.id === oilId);
+            if (oilProd) {
+                currentSelection.oil_price_l = oilProd.price;
+                currentSelection.oil_name = oilProd.name;
+            }
+        } else {
+            select.selectedIndex = 0;
+            currentSelection.oil_price_l = 0;
+            currentSelection.oil_name = null;
+        }
+    }
+    
+    // Mostrar el precio fijo de planilla Excel si existe
+    const refCard = document.getElementById('budget-excel-reference-card');
+    const excelPriceEl = document.getElementById('budget-excel-price');
+    if (refCard && excelPriceEl && v.service_price && v.service_price > 0) {
+        excelPriceEl.innerText = `$${v.service_price.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+        refCard.style.display = 'block';
+    } else if (refCard) {
+        refCard.style.display = 'none';
+    }
+    
+    // Configurar pills del selector de marcas de filtros
+    const selectorContainer = document.getElementById('budget-brand-selector');
+    const pillsContainer = document.getElementById('budget-brand-pills');
+    
+    if (selectorContainer && pillsContainer) {
+        pillsContainer.innerHTML = '';
+        const brands = Object.keys(v.filter_brands || {});
+        
+        if (brands.length > 0) {
+            selectorContainer.classList.remove('hidden');
+            brands.forEach((brand, idx) => {
+                const button = document.createElement('button');
+                button.className = 'brand-pill';
+                button.innerText = brand;
+                button.onclick = () => {
+                    document.querySelectorAll('.brand-pill').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    loadBrandFilters(v, brand);
+                };
+                pillsContainer.appendChild(button);
+                
+                if (idx === 0) {
+                    button.classList.add('active');
+                    loadBrandFilters(v, brand);
+                }
+            });
+        } else {
+            selectorContainer.classList.add('hidden');
+            loadLegacyFilters(v);
+        }
+    } else {
+        loadLegacyFilters(v);
+    }
+}
+
+function loadBrandFilters(v, brand) {
+    currentActiveBrand = brand;
+    const filterSet = v.filter_brands[brand] || {};
+    
+    const types = {
+        oil: filterSet.oil,
+        air: filterSet.air,
+        fuel: filterSet.fuel,
+        cabin: filterSet.cabin
+    };
+    
+    currentSelection.oil = null;
+    currentSelection.air = null;
+    currentSelection.fuel = null;
+    currentSelection.cabin = null;
+    
+    Object.keys(types).forEach(type => {
+        const code = types[type];
+        if (code && code.toLowerCase() !== 'no lleva' && code.toLowerCase() !== 'no viene en kit' && code.toLowerCase() !== 'ni viene en kit' && code !== '-') {
+            let item = wegaData.find(r => r.code.toUpperCase() === code.toUpperCase());
+            let itemBrand = 'WEGA';
+            if (!item) {
+                item = mannData.find(r => r.code.toUpperCase() === code.toUpperCase());
+                itemBrand = 'MANN';
+            }
+            if (!item) {
+                itemBrand = brand;
+            }
+            
+            const filterObj = {
+                code: code,
+                desc: item ? item.desc : `Filtro ${brand}`,
+                price: item ? item.price : 0,
+                brand: itemBrand
+            };
+            
+            selectFilter(type, filterObj);
+        } else {
+            document.getElementById(`sel-${type}`).innerHTML = `<span style="color: var(--muted-foreground);">No lleva / No disponible</span>`;
+        }
+    });
+    
+    calculateBudgetTotal();
+}
+
+function loadLegacyFilters(v) {
+    currentActiveBrand = null;
+    currentSelection.oil = null;
+    currentSelection.air = null;
+    currentSelection.fuel = null;
+    currentSelection.cabin = null;
     
     v.filters.forEach(code => {
         let item = wegaData.find(r => r.code === code.toUpperCase());
@@ -1046,7 +1488,8 @@ function calculateBudgetTotal() {
         if (f && type !== 'oil_liters' && type !== 'oil_price_l' && type !== 'oil_name') {
             const price = f.price * 1.6;
             total += price;
-            itemsDiv.innerHTML += `<p><span>[${f.brand}] ${type.toUpperCase()} (${f.code})</span> <span>$${price.toFixed(0)}</span></p>`;
+            const priceText = price > 0 ? `$${price.toFixed(0)}` : `<span style="color:#ef4444; font-weight:600; font-size:0.8rem;">(Sin precio - Catálogo)</span>`;
+            itemsDiv.innerHTML += `<p><span>[${f.brand}] ${type.toUpperCase()} (${f.code})</span> <span>${priceText}</span></p>`;
         }
     });
 
@@ -1063,7 +1506,7 @@ function calculateBudgetTotal() {
         itemsDiv.innerHTML += `<p><span>Mano de Obra</span> <span>$${labor.toFixed(0)}</span></p>`;
     }
 
-    totalDiv.innerHTML = `<h3>Total: $${total.toFixed(0)}</h3>`;
+    totalDiv.innerHTML = `<h3>Total Calculado: $${total.toFixed(0)}</h3>`;
     resultCard.classList.remove('hidden');
 }
 
@@ -1072,16 +1515,31 @@ async function saveCurrentVehicleConfig() {
     if (!name || !currentSelection.oil) return alert("Seleccione al menos el auto y el filtro de aceite");
     
     const v = {
-        id: 'v_' + Date.now(),
+        id: currentVehicleConfig ? currentVehicleConfig.id : 'v_' + Date.now(),
         name: name.toUpperCase(),
-        oil_liters: currentSelection.oil_liters || 4,
+        oil_type: currentSelection.oil_name ? currentSelection.oil_name.split(' ')[0] : 'ACEITE',
+        oil_liters: parseFloat(document.getElementById('budget-oil-liters').value) || 4,
+        labor: parseFloat(document.getElementById('budget-labor').value) || 0,
+        service_price: currentVehicleConfig ? currentVehicleConfig.service_price : 0,
         filters: [
             currentSelection.oil?.code,
             currentSelection.air?.code,
             currentSelection.fuel?.code,
             currentSelection.cabin?.code
-        ].filter(f => f)
+        ].filter(f => f),
+        filter_brands: currentVehicleConfig ? currentVehicleConfig.filter_brands : {}
     };
+    
+    // Si no tiene filter_brands, crearlo con la marca activa
+    const brand = currentActiveBrand || 'MANUAL';
+    if (!v.filter_brands[brand]) {
+        v.filter_brands[brand] = {
+            oil: currentSelection.oil?.code || '',
+            air: currentSelection.air?.code || '',
+            fuel: currentSelection.fuel?.code || '',
+            cabin: currentSelection.cabin?.code || ''
+        };
+    }
 
     if (client) {
         const { error } = await client.from('datos_taller_ro').insert([{ category: 'vehicle_config', name: v.name, price: v.oil_liters, vehicle: JSON.stringify(v) }]);
@@ -1090,6 +1548,9 @@ async function saveCurrentVehicleConfig() {
             alert("¡Vehículo guardado en tu base de datos!");
             VEHICLE_DB[v.id] = v;
         }
+    } else {
+        VEHICLE_DB[v.id] = v;
+        alert("¡Vehículo guardado localmente!");
     }
 }
 
@@ -1116,7 +1577,14 @@ function copyBudgetToWhatsApp() {
 async function loadCustomVehicles() {
     if (!client) return;
     const { data } = await client.from('datos_taller_ro').select('*').eq('category', 'vehicle_config');
-    if (data) data.forEach(row => { const v = JSON.parse(row.vehicle); VEHICLE_DB[v.id || row.id] = v; });
+    if (data) data.forEach(row => { 
+        try {
+            const v = JSON.parse(row.vehicle); 
+            VEHICLE_DB[v.id || row.id] = v; 
+        } catch(e) {
+            console.error("Error parsing custom vehicle:", e);
+        }
+    });
 }
 
 // --- SERVICE MANUAL ---

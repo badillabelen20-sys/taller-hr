@@ -681,3 +681,51 @@ tr:last-child td {
 
 .badge-payment-pagado { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
 .badge-payment-no { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+/* Brand Pills Selector Styles */
+.brand-pill {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: #f8fafc;
+    color: var(--muted-foreground);
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+}
+.brand-pill:hover {
+    background: #e2e8f0;
+    color: var(--foreground);
+}
+.brand-pill.active {
+    background: #4f46e5;
+    color: white;
+    border-color: #4f46e5;
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+}
+
+/* Vehicle Suggestions Hover */
+.suggestions-box div {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.suggestions-box div:last-child {
+    border-bottom: none;
+}
+.suggestions-box div:hover {
+    background: #f1f5f9;
+}
+.suggestions-box .suggestion-title {
+    font-weight: bold;
+    font-size: 0.9rem;
+    color: var(--dark-bg);
+}
+.suggestions-box .suggestion-subtitle {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+}
+
