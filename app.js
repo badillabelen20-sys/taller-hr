@@ -474,7 +474,10 @@ function setupPOS() {
         if (res.length > 0) {
             sugg.classList.remove('hidden');
             res.forEach(r => {
-                const div = document.createElement('div'); div.className = 'suggestion-item'; div.innerText = r.item.name;
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                const subText = r.item.vehicle ? ` [${r.item.id}] - ${r.item.vehicle}` : ` [${r.item.id}]`;
+                div.innerHTML = `<strong>${r.item.name}</strong><span style="color: var(--muted-foreground); font-size: 0.8rem; margin-left: 8px;">${subText}</span>`;
                 div.onclick = () => {
                     const p = r.item; const c = p.price || 0; const d = c * DEBIT_PERCENT; const cr = c * CREDIT_PERCENT;
                     document.getElementById('pos-selected-info').innerHTML = `
