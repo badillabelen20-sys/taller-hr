@@ -1325,6 +1325,123 @@ function setupReception() {
     };
 }
 
+// --- ALERTA DE STOCK Y PEDIDO DE REPOSICION ---
+let stockOrderItems = [];
+
+function openStockOrderModal() {
+    updateStockOrderList();
+    document.getElementById('stock-order-modal').classList.remove('hidden');
+}
+
+function closeStockOrderModal() {
+    document.getElementById('stock-order-modal').classList.add('hidden');
+}
+
+function updateStockOrderList() {
+    const threshLub = parseInt(document.getElementById('order-threshold-lub').value, 10) || 0;
+    const threshTurbo = parseInt(document.getElementById('order-threshold-turbo').value, 10) || 0;
+    
+    const tbody = document.querySelector('#table-low-stock tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    stockOrderItems = [];
+    
+    // Check Lubricentro
+    inventory.lubricentro.forEach(item => {
+        if (item.stock <= threshLub) {
+            stockOrderItems.push({ ...item, categoryLabel: 'Lubricentro', defaultOrder: Math.max(1, 10 - item.stock) });
+        }
+    });
+    
+    // Check Turbos
+    inventory.turbos.forEach(item => {
+        if (item.stock <= threshTurbo) {
+            stockOrderItems.push({ ...item, categoryLabel: 'Turbos', defaultOrder: 1 });
+        }
+    });
+    
+    if (stockOrderItems.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--muted-foreground);">🎉 Todos los productos tienen stock suficiente.</td></tr>`;
+        document.getElementById('order-preview-text').value = '';
+        return;
+    }
+    
+    stockOrderItems.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        
+        tr.innerHTML = `
+            <td style="padding: 8px;">${item.categoryLabel}</td>
+            <td style="padding: 8px;"><strong>${item.id}</strong></td>
+            <td style="padding: 8px;">${item.name}</td>
+            <td style="padding: 8px; text-align: center; font-weight: bold; color: var(--destructive);">${item.stock}</td>
+            <td style="padding: 8px; text-align: center;">
+                <input type="number" id="order-qty-${index}" value="${item.defaultOrder}" min="0" style="width: 70px; height: 1.8rem; text-align: center; border-radius: 6px; border: 1px solid var(--border);" oninput="generateOrderPreview()">
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    generateOrderPreview();
+}
+
+function generateOrderPreview() {
+    const textArea = document.getElementById('order-preview-text');
+    if (!textArea) return;
+    
+    if (stockOrderItems.length === 0) {
+        textArea.value = '';
+        return;
+    }
+    
+    let text = `📋 *Pedido de Reposición - Taller HR*\n\nHola, necesito realizar el siguiente pedido de mercadería:\n`;
+    let hasItemsToOrder = false;
+    
+    stockOrderItems.forEach((item, index) => {
+        const input = document.getElementById(`order-qty-${index}`);
+        const qty = input ? parseInt(input.value, 10) : item.defaultOrder;
+        
+        if (qty > 0) {
+            text += `- *[${item.id}]* ${item.name} (Pedir ${qty} unid.)\n`;
+            hasItemsToOrder = true;
+        }
+    });
+    
+    text += `\n¡Muchas gracias! Quedo a la espera de la confirmación.`;
+    
+    if (!hasItemsToOrder) {
+        textArea.value = 'No has especificado cantidades para pedir.';
+    } else {
+        textArea.value = text;
+    }
+}
+
+function copyStockOrderToClipboard() {
+    const text = document.getElementById('order-preview-text').value;
+    if (!text || text.startsWith('No has')) return alert("No hay items para copiar");
+    
+    navigator.clipboard.writeText(text).then(() => {
+        alert("📋 ¡Lista de pedido copiada al portapapeles! Ya puedes pegarla en WhatsApp.");
+    });
+}
+
+function sendStockOrderWhatsApp() {
+    const text = document.getElementById('order-preview-text').value;
+    if (!text || text.startsWith('No has')) return alert("No hay items para enviar");
+    
+    const phone = prompt("Ingresa el número de WhatsApp de tu distribuidor o proveedor (ej: 5493416123456) para enviarle el mensaje directamente. De lo contrario, presiona Cancelar:", "");
+    if (phone) {
+        const cleanPhone = phone.replace(/\D/g, '');
+        let formattedPhone = cleanPhone;
+        if (cleanPhone.length === 10) {
+            formattedPhone = '549' + cleanPhone;
+        }
+        const url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    }
+}
+
 // --- WHATSAPP NOTIFICATIONS FOR RECEPTIONS ---
 function openWhatsAppModal(id) {
     const rec = receptions.find(r => r.id === id);

@@ -68,6 +68,7 @@
                         📥 Importar Excel
                         <input type="file" id="import-turbos" accept=".xlsx, .xls" style="display:none;">
                     </label>
+                    <button class="btn btn-sell" style="background-color: #f59e0b; color: white; margin-right: 8px; border: none;" onclick="openStockOrderModal()">📋 Pedido / Alerta Stock</button>
                     <button class="btn btn-add" onclick="openAddModal('turbos')">+ Nuevo Turbo</button>
                 </div>
             </div>
@@ -102,6 +103,7 @@
                         📥 Importar Excel
                         <input type="file" id="import-lubricentro" accept=".xlsx, .xls" style="display:none;">
                     </label>
+                    <button class="btn btn-sell" style="background-color: #f59e0b; color: white; margin-right: 8px; border: none;" onclick="openStockOrderModal()">📋 Pedido / Alerta Stock</button>
                     <button class="btn btn-add" onclick="openAddModal('lubricentro')">+ Nuevo Producto</button>
                 </div>
             </div>
@@ -501,6 +503,57 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal Alerta de Stock y Pedidos -->
+    <div id="stock-order-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 650px;">
+            <h2 style="margin-bottom: 0.5rem; font-family: 'Montserrat', sans-serif; font-weight: 800; color: var(--dark-bg);">Reposición de Stock</h2>
+            <p style="color: var(--muted-foreground); margin-bottom: 1.5rem; font-size: 0.85rem;">Revisa los artículos con bajo stock y genera el pedido para tu distribuidor.</p>
+            
+            <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; background-color: var(--muted); padding: 12px; border-radius: var(--radius);">
+                <div>
+                    <label style="font-weight: 600; font-size: 0.85rem;">Stock menor o igual a:</label>
+                    <input type="number" id="order-threshold-lub" value="3" min="0" style="max-width: 60px; height: 2rem; border-radius: 8px; border: 1px solid var(--border); padding: 4px; font-weight: bold; margin-left: 5px;" oninput="updateStockOrderList()">
+                    <span style="font-size: 0.8rem; color: var(--muted-foreground); margin-left: 2px;">(Lubricentro)</span>
+                </div>
+                <div>
+                    <label style="font-weight: 600; font-size: 0.85rem;">y a:</label>
+                    <input type="number" id="order-threshold-turbo" value="2" min="0" style="max-width: 60px; height: 2rem; border-radius: 8px; border: 1px solid var(--border); padding: 4px; font-weight: bold; margin-left: 5px;" oninput="updateStockOrderList()">
+                    <span style="font-size: 0.8rem; color: var(--muted-foreground); margin-left: 2px;">(Turbos)</span>
+                </div>
+            </div>
+
+            <div class="table-container" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1.5rem;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;" id="table-low-stock">
+                    <thead>
+                        <tr style="background-color: var(--muted); border-bottom: 1px solid var(--border);">
+                            <th style="padding: 8px; text-align: left;">Categoría</th>
+                            <th style="padding: 8px; text-align: left;">Código</th>
+                            <th style="padding: 8px; text-align: left;">Artículo</th>
+                            <th style="padding: 8px; text-align: center;">Stock</th>
+                            <th style="padding: 8px; text-align: center; width: 90px;">Pedir</th>
+                        </tr>
+                    </thead>
+                    <tbody style="border-top: 1px solid var(--border);">
+                        <!-- Generado dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="form-group">
+                <label style="font-weight: 600;">Vista Previa del Pedido</label>
+                <textarea id="order-preview-text" rows="5" style="width:100%; border-radius:var(--radius); border:1px solid var(--border); padding:10px; font-family: 'Outfit', sans-serif; font-size: 0.85rem; resize: vertical; margin-bottom: 15px;"></textarea>
+            </div>
+
+            <div class="modal-actions" style="display: flex; justify-content: space-between; gap: 0.5rem; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-cancel" onclick="closeStockOrderModal()">Cerrar</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button type="button" class="btn" style="background-color: var(--dark-bg); color: white;" onclick="copyStockOrderToClipboard()">📋 Copiar Pedido</button>
+                    <button type="button" class="btn btn-save" style="background-color: #25d366; color: white;" onclick="sendStockOrderWhatsApp()">🚀 Enviar por WhatsApp</button>
+                </div>
+            </div>
         </div>
     </div>
 
