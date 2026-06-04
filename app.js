@@ -605,7 +605,7 @@ async function completeSale(cat, index, price, method, qty = 1) {
 
 async function deleteSale(id, date) {
     if (!confirm("¿Anular esta venta?")) return;
-    const idx = sales.findIndex(s => s.id === id && s.date === date);
+    const idx = sales.findIndex(s => (s.id == id || (s.id === undefined && id === 'undefined') || (s.id === null && id === 'null')) && s.date === date);
     if (idx > -1) {
         const s = sales[idx]; 
         const productCode = s.item_id || s.id;
