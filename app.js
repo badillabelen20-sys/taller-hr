@@ -627,6 +627,12 @@ async function deleteSale(id, date) {
         sales.splice(idx, 1); 
         await saveData(); 
         renderAll();
+        
+        // Refrescar el buscador de historial si está abierto en pantalla
+        const resultsPanel = document.getElementById('dash-history-results');
+        if (resultsPanel && !resultsPanel.classList.contains('hidden')) {
+            searchVehicleHistory();
+        }
     }
 }
 
@@ -2380,6 +2386,9 @@ function searchVehicleHistory() {
                     <td style="padding: 10px 8px; color: #334155; max-width: 300px; word-break: break-word;">${sd.notes || 'Service general'}</td>
                     <td style="padding: 10px 8px; font-weight: 700; color: var(--primary); white-space: nowrap;">${priceFormatted}</td>
                     <td style="padding: 10px 8px; white-space: nowrap;"><span class="payment-badge ${badgeClass}" style="font-size: 0.7rem; padding: 2px 6px;">${paymentMethod}</span></td>
+                    <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
+                        <button style="color: #ef4444; border: none; background: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 2px 6px;" onclick="deleteSale('${item.itemId || item.id}', '${item.rawDate}')" title="Anular este service">🗑️</button>
+                    </td>
                 </tr>
             `;
         });
@@ -2394,6 +2403,7 @@ function searchVehicleHistory() {
                             <th style="padding: 8px; text-align: left;">Trabajo Realizado / Notas</th>
                             <th style="padding: 8px; text-align: left;">Precio</th>
                             <th style="padding: 8px; text-align: left;">Cobro</th>
+                            <th style="padding: 8px; text-align: center; width: 60px;">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
