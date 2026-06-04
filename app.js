@@ -1677,6 +1677,51 @@ function renderReceptions(filter = '') {
     if (!tbody) return;
     tbody.innerHTML = '';
     
+    // Calculate and display monthly collected subtotal and stats for receptions
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const todayStr = today.toISOString().split('T')[0];
+    const currentYearMonth = `${yyyy}-${mm}`;
+    
+    const prevMonthDate = new Date(yyyy, today.getMonth() - 1, 1);
+    const prevY = prevMonthDate.getFullYear();
+    const prevM = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+    const prevYearMonth = `${prevY}-${prevM}`;
+    
+    let sumToday = 0;
+    let sumMonth = 0;
+    let sumPrevMonth = 0;
+    let sumUnpaid = 0;
+    
+    receptions.forEach(r => {
+        const cost = parseFloat(r.price) || 0;
+        if (r.paymentStatus === 'Pagado') {
+            const payDate = r.dateDelivery || r.dateIngress || '';
+            if (payDate === todayStr) {
+                sumToday += cost;
+            }
+            if (payDate.startsWith(currentYearMonth)) {
+                sumMonth += cost;
+            }
+            if (payDate.startsWith(prevYearMonth)) {
+                sumPrevMonth += cost;
+            }
+        } else {
+            sumUnpaid += cost;
+        }
+    });
+    
+    const elToday = document.getElementById('reception-sum-today');
+    const elMonth = document.getElementById('reception-sum-month');
+    const elPrevMonth = document.getElementById('reception-sum-prev-month');
+    const elUnpaid = document.getElementById('reception-sum-unpaid');
+    
+    if (elToday) elToday.innerText = `$${sumToday.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elMonth) elMonth.innerText = `$${sumMonth.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elPrevMonth) elPrevMonth.innerText = `$${sumPrevMonth.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elUnpaid) elUnpaid.innerText = `$${sumUnpaid.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
     const filtered = receptions.filter(r => {
         if (!filter) return true;
         const q = filter.toLowerCase();

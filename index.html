@@ -416,13 +416,34 @@
 
         <!-- Tab Recepción de Turbos -->
         <section id="recepcion" class="tab-content">
-            <div class="tab-header">
+            <div class="tab-header" style="border-bottom: none; padding-bottom: 1rem;">
                 <h2>Recepción de Turbos</h2>
                 <div>
                     <button class="btn btn-add" onclick="openReceptionModal()">+ Nueva Recepción</button>
                 </div>
             </div>
-            <input type="text" class="search-bar" id="search-reception" placeholder="Buscar por cliente, contacto o datos del turbo...">
+            
+            <!-- Resumen de recaudación mensual de turbos -->
+            <div class="sales-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; width: 100%; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 15px 2rem; background: #f8fafc; margin-bottom: 1rem;">
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; text-align: center; box-shadow: var(--shadow-sm);">
+                    <span style="font-size: 0.75rem; color: #166534; font-weight: 600; text-transform: uppercase;">Recaudado Hoy</span>
+                    <strong id="reception-sum-today" style="display: block; font-size: 1.15rem; color: #166534; margin-top: 2px;">$0.00</strong>
+                </div>
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; text-align: center; box-shadow: var(--shadow-sm);">
+                    <span style="font-size: 0.75rem; color: #166534; font-weight: 600; text-transform: uppercase;">Recaudado (Mes Actual)</span>
+                    <strong id="reception-sum-month" style="display: block; font-size: 1.15rem; color: #166534; margin-top: 2px;">$0.00</strong>
+                </div>
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; text-align: center; box-shadow: var(--shadow-sm);">
+                    <span style="font-size: 0.75rem; color: #475569; font-weight: 600; text-transform: uppercase;">Recaudado (Mes Anterior)</span>
+                    <strong id="reception-sum-prev-month" style="display: block; font-size: 1.15rem; color: #475569; margin-top: 2px;">$0.00</strong>
+                </div>
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; text-align: center; box-shadow: var(--shadow-sm);">
+                    <span style="font-size: 0.75rem; color: #991b1b; font-weight: 600; text-transform: uppercase;">Total Pendiente Cobro</span>
+                    <strong id="reception-sum-unpaid" style="display: block; font-size: 1.15rem; color: #991b1b; margin-top: 2px;">$0.00</strong>
+                </div>
+            </div>
+
+            <input type="text" class="search-bar" id="search-reception" placeholder="Buscar por cliente, contacto o datos del turbo..." style="margin-top: 0.5rem; margin-bottom: 1.5rem;">
             
             <div class="table-container">
                 <table id="table-reception">
