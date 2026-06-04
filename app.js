@@ -217,6 +217,19 @@ function renderAll() { renderTurbos(); renderLubricentro(); renderSales(); rende
 function renderTurbos(filter = '') {
     const tbody = document.querySelector('#table-turbos tbody'); if (!tbody) return;
     tbody.innerHTML = '';
+    
+    // Sort alphabetically by type, and then by name
+    inventory.turbos.sort((a, b) => {
+        const typeA = (a.type || '').trim().toLowerCase();
+        const typeB = (b.type || '').trim().toLowerCase();
+        if (typeA !== typeB) {
+            return typeA.localeCompare(typeB, 'es', { sensitivity: 'base' });
+        }
+        const nameA = (a.name || '').trim().toLowerCase();
+        const nameB = (b.name || '').trim().toLowerCase();
+        return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    });
+
     inventory.turbos.forEach((item, index) => {
         if (filter) {
             const q = filter.toLowerCase();
@@ -236,6 +249,19 @@ function renderTurbos(filter = '') {
 function renderLubricentro(filter = '') {
     const tbody = document.querySelector('#table-lubricentro tbody'); if (!tbody) return;
     tbody.innerHTML = '';
+    
+    // Sort alphabetically by type, and then by name
+    inventory.lubricentro.sort((a, b) => {
+        const typeA = (a.type || '').trim().toLowerCase();
+        const typeB = (b.type || '').trim().toLowerCase();
+        if (typeA !== typeB) {
+            return typeA.localeCompare(typeB, 'es', { sensitivity: 'base' });
+        }
+        const nameA = (a.name || '').trim().toLowerCase();
+        const nameB = (b.name || '').trim().toLowerCase();
+        return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    });
+
     inventory.lubricentro.forEach((item, index) => {
         if (filter) {
             const q = filter.toLowerCase();
