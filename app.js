@@ -212,7 +212,7 @@ function loadFromLocal() {
     }
 }
 
-function renderAll() { renderTurbos(); renderLubricentro(); renderSales(); renderReceptions(); updateOilSelect(); }
+function renderAll() { renderTurbos(); renderLubricentro(); renderSales(); renderReceptions(); updateOilSelect(); renderDashboard(); }
 
 function renderTurbos(filter = '') {
     const tbody = document.querySelector('#table-turbos tbody'); if (!tbody) return;
@@ -615,8 +615,32 @@ async function deleteSale(id, date) {
 function setupTabs() {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.onclick = () => {
         document.querySelectorAll('.tab-btn, .tab-content').forEach(el => el.classList.remove('active'));
-        btn.classList.add('active'); document.getElementById(btn.dataset.tab).classList.add('active');
+        btn.classList.add('active');
+        const activeTab = btn.dataset.tab;
+        document.getElementById(activeTab).classList.add('active');
+        
+        // Show POS panel only on inventory tabs (turbos and lubricentro)
+        const posPanel = document.querySelector('.pos-panel');
+        if (posPanel) {
+            if (activeTab === 'turbos' || activeTab === 'lubricentro') {
+                posPanel.style.display = 'block';
+            } else {
+                posPanel.style.display = 'none';
+            }
+        }
     });
+    
+    // Set initial state based on active tab
+    const posPanel = document.querySelector('.pos-panel');
+    if (posPanel) {
+        const activeBtn = document.querySelector('.tab-btn.active');
+        const activeTab = activeBtn ? activeBtn.dataset.tab : 'dashboard';
+        if (activeTab === 'turbos' || activeTab === 'lubricentro') {
+            posPanel.style.display = 'block';
+        } else {
+            posPanel.style.display = 'none';
+        }
+    }
 }
 
 function setupSearch() {
@@ -1522,6 +1546,138 @@ function setupWhatsApp() {
         window.open(url, '_blank');
         closeWhatsAppModal();
     };
+}
+
+function renderDashboard() {
+    const elSalesToday = document.getElementById('dash-sales-today');
+    if (!elSalesToday) return;
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
+    let salesToday = 0;
+    let countToday = 0;
+    let salesMonth = 0;
+    let countMonth = 0;
+    
+    let payCash = 0;
+    let payTransfer = 0;
+    let payDebit = 0;
+    let payCredit = 0;
+    
+    sales.forEach(s => {
+        const sDate = new Date(s.date);
+        const sDateStr = s.date.split('T')[0];
+        const sPrice = parseFloat(s.price) || 0;
+        
+        if (sDateStr === todayStr) {
+            salesToday += sPrice;
+            countToday++;
+        }
+        
+        if (sDate.getMonth() === currentMonth && sDate.getFullYear() === currentYear) {
+            salesMonth += sPrice;
+            countMonth++;
+            
+            let paymentMethod = 'Efectivo';
+            const methodMatch = s.name.match(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/);
+            if (methodMatch) {
+                paymentMethod = methodMatch[1];
+            } else {
+                paymentMethod = guessPaymentMethod(s);
+            }
+            
+            if (paymentMethod === 'Efectivo') payCash += sPrice;
+            else if (paymentMethod === 'Transferencia') payTransfer += sPrice;
+            else if (paymentMethod === 'Débito') payDebit += sPrice;
+            else if (paymentMethod === 'Crédito') payCredit += sPrice;
+        }
+    });
+    
+    elSalesToday.innerText = `$${salesToday.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById('dash-sales-count-today').innerText = `${countToday} transacciones`;
+    
+    document.getElementById('dash-sales-month').innerText = `$${salesMonth.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById('dash-sales-count-month').innerText = `${countMonth} transacciones`;
+    
+    const turbosInTaller = receptions.filter(r => r.deliveryStatus !== 'Entregado');
+    document.getElementById('dash-turbos-taller').innerText = turbosInTaller.length;
+    
+    const turbosNotBudgeted = receptions.filter(r => r.deliveryStatus !== 'Entregado' && r.budgetStatus !== 'Presupuestado');
+    document.getElementById('dash-turbos-pending').innerText = `${turbosNotBudgeted.length} sin presupuestar`;
+    
+    let lowStockCount = 0;
+    const threshLub = parseInt(document.getElementById('order-threshold-lub')?.value || '3', 10);
+    const threshTurbo = parseInt(document.getElementById('order-threshold-turbo')?.value || '2', 10);
+    inventory.lubricentro.forEach(i => { if (i.stock <= threshLub) lowStockCount++; });
+    inventory.turbos.forEach(i => { if (i.stock <= threshTurbo) lowStockCount++; });
+    document.getElementById('dash-low-stock').innerText = lowStockCount;
+    
+    document.getElementById('dashboard-update-time').innerText = `Actualizado: ${new Date().toLocaleTimeString('es-AR')}`;
+    
+    const totalPayMonth = payCash + payTransfer + payDebit + payCredit;
+    const getPercent = (val) => totalPayMonth > 0 ? (val / totalPayMonth) * 100 : 0;
+    
+    const barsContainer = document.getElementById('payment-methods-bars');
+    if (barsContainer) {
+        barsContainer.innerHTML = `
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:600; margin-bottom:5px;">
+                    <span style="color:#16a34a;">💵 Efectivo (${getPercent(payCash).toFixed(1)}%)</span>
+                    <span>$${payCash.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div style="background:#e5e7eb; height:10px; border-radius:5px; overflow:hidden;">
+                    <div style="background:#16a34a; height:100%; width:${getPercent(payCash)}%; border-radius:5px;"></div>
+                </div>
+            </div>
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:600; margin-bottom:5px;">
+                    <span style="color:#7c3aed;">💜 Transferencia (${getPercent(payTransfer).toFixed(1)}%)</span>
+                    <span>$${payTransfer.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div style="background:#e5e7eb; height:10px; border-radius:5px; overflow:hidden;">
+                    <div style="background:#7c3aed; height:100%; width:${getPercent(payTransfer)}%; border-radius:5px;"></div>
+                </div>
+            </div>
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:600; margin-bottom:5px;">
+                    <span style="color:#2563eb;">💳 Débito (${getPercent(payDebit).toFixed(1)}%)</span>
+                    <span>$${payDebit.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div style="background:#e5e7eb; height:10px; border-radius:5px; overflow:hidden;">
+                    <div style="background:#2563eb; height:100%; width:${getPercent(payDebit)}%; border-radius:5px;"></div>
+                </div>
+            </div>
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:600; margin-bottom:5px;">
+                    <span style="color:#dc2626;">💳 Crédito (${getPercent(payCredit).toFixed(1)}%)</span>
+                    <span>$${payCredit.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div style="background:#e5e7eb; height:10px; border-radius:5px; overflow:hidden;">
+                    <div style="background:#dc2626; height:100%; width:${getPercent(payCredit)}%; border-radius:5px;"></div>
+                </div>
+            </div>
+        `;
+    }
+    
+    const recNotDelivered = receptions.filter(r => r.deliveryStatus !== 'Entregado').length;
+    const recDelivered = receptions.filter(r => r.deliveryStatus === 'Entregado').length;
+    const recNotBudgetedCount = receptions.filter(r => r.budgetStatus !== 'Presupuestado').length;
+    const recUnpaid = receptions.filter(r => r.paymentStatus !== 'Pagado').length;
+    
+    document.getElementById('dash-rec-not-delivered').innerText = recNotDelivered;
+    document.getElementById('dash-rec-delivered').innerText = recDelivered;
+    document.getElementById('dash-rec-not-budgeted').innerText = recNotBudgetedCount;
+    document.getElementById('dash-rec-unpaid').innerText = recUnpaid;
+    
+    const deliveredItems = receptions.filter(r => r.deliveryStatus === 'Entregado' && r.dateIngress && r.dateDelivery);
+    let totalDays = 0;
+    deliveredItems.forEach(r => {
+        totalDays += calculateDaysInShop(r.dateIngress, r.dateDelivery, 'Entregado');
+    });
+    const avgDays = deliveredItems.length > 0 ? (totalDays / deliveredItems.length).toFixed(1) : 0;
+    document.getElementById('dash-rec-avg-days').innerText = `${avgDays} días`;
 }
 
 async function apply21PercentIncrease() {

@@ -36,7 +36,8 @@
             <img src="logo.png" alt="HR Turbos y Servicios Logo" style="height: 60px; width: auto; object-fit: contain;">
         </div>
         <nav class="tabs">
-            <button class="tab-btn active" data-tab="turbos">Turbos</button>
+            <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+            <button class="tab-btn" data-tab="turbos">Turbos</button>
             <button class="tab-btn" data-tab="lubricentro">Lubricentro</button>
             <button class="tab-btn" data-tab="ventas-turbos">Libro Turbos</button>
             <button class="tab-btn" data-tab="ventas-lubricentro">Libro Lubricentro</button>
@@ -59,8 +60,93 @@
             <p id="pos-selected-info" class="selected-info">Ningún producto seleccionado</p>
         </section>
 
+        <!-- Tab Dashboard -->
+        <section id="dashboard" class="tab-content active">
+            <div class="tab-header">
+                <h2>Panel de Control (Estadísticas)</h2>
+                <div style="font-size: 0.9rem; color: var(--muted-foreground); font-weight: 600;" id="dashboard-update-time">Actualizado: -</div>
+            </div>
+
+            <!-- Métrica Grid -->
+            <div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <!-- Tarjeta 1: Ventas Hoy -->
+                <div class="dash-card" style="background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); position: relative; overflow: hidden;">
+                    <div style="font-size: 0.85rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">Ventas de Hoy</div>
+                    <div id="dash-sales-today" style="font-size: 2rem; font-weight: 800; color: var(--dark-bg); margin-top: 5px;">$0.00</div>
+                    <div id="dash-sales-count-today" style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 5px;">0 transacciones</div>
+                    <div style="position: absolute; right: 15px; bottom: 15px; font-size: 2rem; opacity: 0.1;">💵</div>
+                </div>
+
+                <!-- Tarjeta 2: Ventas del Mes -->
+                <div class="dash-card" style="background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); position: relative; overflow: hidden;">
+                    <div style="font-size: 0.85rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">Ventas del Mes</div>
+                    <div id="dash-sales-month" style="font-size: 2rem; font-weight: 800; color: var(--primary); margin-top: 5px;">$0.00</div>
+                    <div id="dash-sales-count-month" style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 5px;">0 transacciones</div>
+                    <div style="position: absolute; right: 15px; bottom: 15px; font-size: 2rem; opacity: 0.1;">📊</div>
+                </div>
+
+                <!-- Tarjeta 3: Turbos en Taller -->
+                <div class="dash-card" style="background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); position: relative; overflow: hidden;">
+                    <div style="font-size: 0.85rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">Turbos en Taller</div>
+                    <div id="dash-turbos-taller" style="font-size: 2rem; font-weight: 800; color: #d97706; margin-top: 5px;">0</div>
+                    <div id="dash-turbos-pending" style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 5px;">0 sin presupuestar</div>
+                    <div style="position: absolute; right: 15px; bottom: 15px; font-size: 2rem; opacity: 0.1;">🔧</div>
+                </div>
+
+                <!-- Tarjeta 4: Productos con Bajo Stock -->
+                <div class="dash-card" style="background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); position: relative; overflow: hidden; cursor: pointer;" onclick="openStockOrderModal()">
+                    <div style="font-size: 0.85rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">Alertas de Stock</div>
+                    <div id="dash-low-stock" style="font-size: 2rem; font-weight: 800; color: var(--destructive); margin-top: 5px;">0</div>
+                    <div style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 5px;">Artículos para reposición</div>
+                    <div style="position: absolute; right: 15px; bottom: 15px; font-size: 2rem; opacity: 0.1;">⚠️</div>
+                </div>
+            </div>
+
+            <!-- Segunda Fila: Gráficos de Medios de Pago y Distribución de Categorías -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <!-- Medios de Pago -->
+                <div class="dashboard-panel" style="background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow);">
+                    <h3 style="font-family: 'Montserrat', sans-serif; font-weight: 800; margin-bottom: 1.5rem; color: var(--dark-bg); font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Distribución por Medio de Pago (Mes Actual)</h3>
+                    <div id="payment-methods-bars" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                        <!-- Generado Dinámicamente -->
+                    </div>
+                </div>
+
+                <!-- Resumen Operativo Turbos -->
+                <div class="dashboard-panel" style="background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow);">
+                    <h3 style="font-family: 'Montserrat', sans-serif; font-weight: 800; margin-bottom: 1.5rem; color: var(--dark-bg); font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Estado de Recepción de Turbos</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div style="background: #fdf2f2; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #fee2e2;">
+                            <span style="font-size: 0.8rem; color: #991b1b; font-weight: 600; text-transform: uppercase;">No Entregados</span>
+                            <div id="dash-rec-not-delivered" style="font-size: 1.75rem; font-weight: 800; color: #991b1b; margin-top: 2px;">0</div>
+                        </div>
+                        <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #dcfce7;">
+                            <span style="font-size: 0.8rem; color: #166534; font-weight: 600; text-transform: uppercase;">Entregados</span>
+                            <div id="dash-rec-delivered" style="font-size: 1.75rem; font-weight: 800; color: #166534; margin-top: 2px;">0</div>
+                        </div>
+                        <div style="background: #fffbeb; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #fef3c7;">
+                            <span style="font-size: 0.8rem; color: #92400e; font-weight: 600; text-transform: uppercase;">No Presupuestados</span>
+                            <div id="dash-rec-not-budgeted" style="font-size: 1.75rem; font-weight: 800; color: #92400e; margin-top: 2px;">0</div>
+                        </div>
+                        <div style="background: #f0fdfa; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #ccfbf1;">
+                            <span style="font-size: 0.8rem; color: #0f766e; font-weight: 600; text-transform: uppercase;">Pendiente Pago</span>
+                            <div id="dash-rec-unpaid" style="font-size: 1.75rem; font-weight: 800; color: #0f766e; margin-top: 2px;">0</div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: var(--muted); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px;">
+                            <span>Promedio Días en Taller (Entregados)</span>
+                            <span id="dash-rec-avg-days" style="color: var(--primary);">0 días</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Tab Turbos -->
-        <section id="turbos" class="tab-content active">
+        <section id="turbos" class="tab-content">
             <div class="tab-header">
                 <h2>Inventario de Turbos</h2>
                 <div>
