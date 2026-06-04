@@ -1589,6 +1589,11 @@ async function loadCustomVehicles() {
 
 // --- SERVICE MANUAL ---
 function openServiceModal() {
+    document.getElementById('service-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('service-plate').value = '';
+    document.getElementById('service-km').value = '';
+    document.getElementById('service-client').value = '';
+    document.getElementById('service-phone').value = '';
     document.getElementById('service-vehicle').value = '';
     document.getElementById('service-price').value = '';
     document.getElementById('service-notes').value = '';
@@ -1604,21 +1609,33 @@ function setupServiceModal() {
     if (!form) return;
     form.onsubmit = async (e) => {
         e.preventDefault();
-        const vehicle = document.getElementById('service-vehicle').value;
+        const dateVal = document.getElementById('service-date').value;
+        const plate = document.getElementById('service-plate').value.toUpperCase().trim();
+        const km = document.getElementById('service-km').value.trim();
+        const clientName = document.getElementById('service-client').value.trim();
+        const phone = document.getElementById('service-phone').value.trim();
+        const vehicle = document.getElementById('service-vehicle').value.trim();
         const price = parseFloat(document.getElementById('service-price').value) || 0;
         const method = document.getElementById('service-method').value;
-        const notes = document.getElementById('service-notes').value;
+        const notes = document.getElementById('service-notes').value.trim();
         
         let saleName = `⚙️ SERVICE: ${vehicle}`;
-        if (notes) saleName += ` - ${notes}`;
+        if (plate) saleName += ` [Patente: ${plate}]`;
+        if (km) saleName += ` [Km: ${km}]`;
+        if (clientName) saleName += ` - Cliente: ${clientName}`;
+        if (phone) saleName += ` (Tel: ${phone})`;
+        if (notes) saleName += ` | Notas: ${notes}`;
         saleName += ` - ${method}`;
+        
+        // Formatear fecha para preservar la hora al mediodía local
+        const saleDate = dateVal ? new Date(dateVal + 'T12:00:00').toISOString() : new Date().toISOString();
         
         const newSale = { 
             item_id: "SERVICE", 
             name: saleName, 
             category: "lubricentro", 
             price: price, 
-            date: new Date().toISOString() 
+            date: saleDate 
         };
         
         if (client) {
@@ -2171,7 +2188,35 @@ function renderDashboard() {
     document.getElementById('dash-rec-avg-days').innerText = `${avgDays} días`;
 }
 
-// --- BUSCADOR DE HISTORIAL DE VEHICULOS ---
+// --- DECODIFICADOR DE DETALLES DE SERVICES MANUALES ---
+function parseServiceName(name) {
+    if (!name || !name.includes('SERVICE:')) return null;
+    
+    const plateMatch = name.match(/\[Patente:\s*([^\]]+)\]/i);
+    const kmMatch = name.match(/\[Km:\s*([^\]]+)\]/i);
+    const clientMatch = name.match(/-\s*Cliente:\s*([^\(|\||-]+)/i);
+    const phoneMatch = name.match(/\(Tel:\s*([^\)]+)\)/i);
+    const notesMatch = name.match(/\|\s*Notas:\s*([^|-]+)/i);
+    
+    let vehicle = '';
+    const serviceIndex = name.indexOf('SERVICE:');
+    if (serviceIndex !== -1) {
+        const start = serviceIndex + 8;
+        const end = name.search(/\[|-|\|/);
+        vehicle = end !== -1 ? name.substring(start, end).trim() : name.substring(start).trim();
+    }
+    
+    return {
+        vehicle: vehicle || 'Servicio General',
+        plate: plateMatch ? plateMatch[1].trim() : '',
+        km: kmMatch ? kmMatch[1].trim() : '',
+        client: clientMatch ? clientMatch[1].trim() : '',
+        phone: phoneMatch ? phoneMatch[1].trim() : '',
+        notes: notesMatch ? notesMatch[1].trim() : ''
+    };
+}
+
+// --- BUSCADOR DE HISTORIAL DE VEHICULOS (FICHA TÉCNICA) ---
 function searchVehicleHistory() {
     const input = document.getElementById('dash-history-search');
     const resultsContainer = document.getElementById('dash-history-results');
@@ -2188,23 +2233,28 @@ function searchVehicleHistory() {
     
     timeline.innerHTML = '';
     
-    // Find matches in sales
+    // 1. Filtrar ventas
     const matchedSales = sales.filter(s => {
         const name = (s.name || '').toLowerCase();
         const itemId = (s.item_id || '').toLowerCase();
         const category = (s.category || '').toLowerCase();
         return name.includes(query) || itemId.includes(query) || category.includes(query);
-    }).map(s => ({
-        type: 'sale',
-        date: new Date(s.date),
-        rawDate: s.date,
-        category: s.category,
-        name: s.name,
-        price: parseFloat(s.price) || 0,
-        itemId: s.item_id
-    }));
+    }).map(s => {
+        const parsed = parseServiceName(s.name);
+        return {
+            type: 'sale',
+            isService: !!parsed,
+            serviceDetails: parsed,
+            date: new Date(s.date),
+            rawDate: s.date,
+            category: s.category,
+            name: s.name,
+            price: parseFloat(s.price) || 0,
+            itemId: s.item_id
+        };
+    });
     
-    // Find matches in receptions
+    // 2. Filtrar recepciones de turbos
     const matchedReceptions = receptions.filter(r => {
         const client = (r.clientName || '').toLowerCase();
         const contact = (r.contact || '').toLowerCase();
@@ -2236,8 +2286,7 @@ function searchVehicleHistory() {
         dateDelivery: r.dateDelivery
     }));
     
-    // Combine and sort by date descending
-    const combined = [...matchedSales, ...matchedReceptions].sort((a, b) => b.date - a.date);
+    const combined = [...matchedSales, ...matchedReceptions];
     
     if (combined.length === 0) {
         title.innerText = `No se encontraron resultados para "${input.value}"`;
@@ -2248,20 +2297,73 @@ function searchVehicleHistory() {
     
     title.innerText = `Resultados para "${input.value}" (${combined.length} encontrados)`;
     
+    // 3. Agrupar los services manuales por patente o auto para crear la "Ficha Técnica"
+    const servicesByVehicle = {};
+    const otherEvents = [];
+    
     combined.forEach(item => {
-        const div = document.createElement('div');
-        const dStr = item.date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        
-        if (item.type === 'sale') {
-            let paymentMethod = '-';
-            let displayName = item.name;
-            const methodMatch = item.name.match(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/);
-            if (methodMatch) {
-                paymentMethod = methodMatch[1];
-                displayName = item.name.replace(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/, '');
-            } else {
-                paymentMethod = guessPaymentMethod(item);
+        if (item.type === 'sale' && item.isService && item.serviceDetails) {
+            const sd = item.serviceDetails;
+            const groupKey = sd.plate ? sd.plate.toUpperCase() : `VEHICULO:${sd.vehicle.toUpperCase()}`;
+            
+            if (!servicesByVehicle[groupKey]) {
+                servicesByVehicle[groupKey] = {
+                    vehicle: sd.vehicle,
+                    plate: sd.plate,
+                    client: sd.client,
+                    phone: sd.phone,
+                    history: []
+                };
             }
+            servicesByVehicle[groupKey].history.push(item);
+            
+            if (!servicesByVehicle[groupKey].client && sd.client) servicesByVehicle[groupKey].client = sd.client;
+            if (!servicesByVehicle[groupKey].phone && sd.phone) servicesByVehicle[groupKey].phone = sd.phone;
+        } else {
+            otherEvents.push(item);
+        }
+    });
+    
+    // 4. Renderizar las Fichas Técnicas agrupadas
+    Object.keys(servicesByVehicle).forEach(key => {
+        const group = servicesByVehicle[key];
+        group.history.sort((a, b) => b.date - a.date);
+        
+        const card = document.createElement('div');
+        card.className = 'ficha-tecnica-card';
+        card.style.background = 'white';
+        card.style.border = '1px solid var(--border)';
+        card.style.borderRadius = '12px';
+        card.style.padding = '20px';
+        card.style.marginBottom = '20px';
+        card.style.boxShadow = 'var(--shadow-md)';
+        card.style.borderLeft = '6px solid #4f46e5';
+        card.style.textAlign = 'left';
+        
+        let headerHtml = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <span style="background: #e0e7ff; color: #4f46e5; font-size: 0.75rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; text-transform: uppercase;">🚗 FICHA TÉCNICA UNIFICADA</span>
+                    <h2 style="font-family: 'Montserrat', sans-serif; font-size: 1.2rem; font-weight: 800; color: var(--dark-bg); margin-top: 5px;">${group.vehicle}</h2>
+                    ${group.client ? `<p style="font-size: 0.85rem; color: var(--muted-foreground); margin-top: 3px;"><strong>Cliente:</strong> ${group.client} ${group.phone ? `| <strong>Tel:</strong> ${group.phone}` : ''}</p>` : ''}
+                </div>
+                ${group.plate ? `
+                <div style="background: #1e293b; color: white; padding: 6px 14px; border-radius: 8px; border: 2px solid #cbd5e1; font-family: 'Montserrat', sans-serif; font-weight: 900; font-size: 1.1rem; letter-spacing: 0.05em; text-align: center; box-shadow: var(--shadow-sm);">
+                    ${group.plate}
+                </div>` : ''}
+            </div>
+        `;
+        
+        let rowsHtml = '';
+        group.history.forEach(item => {
+            const sd = item.serviceDetails;
+            const dateStr = item.date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const priceFormatted = `$${item.price.toLocaleString('es-AR')}`;
+            
+            let paymentMethod = '-';
+            const methodMatch = item.name.match(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/);
+            if (methodMatch) paymentMethod = methodMatch[1];
+            else paymentMethod = guessPaymentMethod(item);
             
             let badgeClass = 'badge-other';
             if (paymentMethod === 'Efectivo') badgeClass = 'badge-cash';
@@ -2269,62 +2371,137 @@ function searchVehicleHistory() {
             else if (paymentMethod === 'Débito') badgeClass = 'badge-debit';
             else if (paymentMethod === 'Crédito') badgeClass = 'badge-credit';
             
-            const categoryLabel = item.category === 'turbos' ? 'VENTA TURBO' : 'VENTA LUBRICENTRO';
-            const badgeColor = item.category === 'turbos' ? '#b91c1c' : '#dc2626';
+            const kmText = sd.km ? `${parseFloat(sd.km).toLocaleString('es-AR')} Km` : '-';
             
-            div.innerHTML = `
-                <div class="timeline-item" style="background: white; border-left: 4px solid ${badgeColor}; padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border); border-left-width: 4px; box-shadow: var(--shadow-sm); margin-bottom: 8px; text-align: left;">
-                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted-foreground); margin-bottom:5px;">
-                        <span>📅 ${dStr}</span>
-                        <span style="background: #fee2e2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.7rem;">${categoryLabel}</span>
-                    </div>
-                    <div style="font-weight: 700; font-size: 0.9rem; color: var(--dark-bg);">${displayName}</div>
-                    <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.8rem; flex-wrap:wrap; gap:5px;">
-                        <span style="color:var(--muted-foreground);">Cobro: <span class="payment-badge ${badgeClass}" style="padding: 1px 6px; font-size: 0.7rem;">${paymentMethod}</span></span>
-                        <strong style="color: var(--foreground); font-size: 0.85rem;">$${item.price.toFixed(2)}</strong>
-                    </div>
-                </div>
+            rowsHtml += `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 10px 8px; font-weight: 600; color: #475569; white-space: nowrap;">📅 ${dateStr}</td>
+                    <td style="padding: 10px 8px; font-weight: 700; color: #0f172a; white-space: nowrap;">${kmText}</td>
+                    <td style="padding: 10px 8px; color: #334155; max-width: 300px; word-break: break-word;">${sd.notes || 'Service general'}</td>
+                    <td style="padding: 10px 8px; font-weight: 700; color: var(--primary); white-space: nowrap;">${priceFormatted}</td>
+                    <td style="padding: 10px 8px; white-space: nowrap;"><span class="payment-badge ${badgeClass}" style="font-size: 0.7rem; padding: 2px 6px;">${paymentMethod}</span></td>
+                </tr>
             `;
-        } else {
-            const days = calculateDaysInShop(item.rawDate, item.dateDelivery, item.deliveryStatus);
-            
-            const budgetBadge = `<span class="status-badge ${item.budgetStatus === 'Presupuestado' ? 'badge-budget-presupuestado' : 'badge-budget-no'}" style="padding: 1px 6px; font-size: 0.7rem;">${item.budgetStatus}</span>`;
-            const deliveryBadge = `<span class="status-badge ${item.deliveryStatus === 'Entregado' ? 'badge-delivery-entregado' : 'badge-delivery-no'}" style="padding: 1px 6px; font-size: 0.7rem;">${item.deliveryStatus}</span>`;
-            const paymentBadge = `<span class="status-badge ${item.paymentStatus === 'Pagado' ? 'badge-payment-pagado' : 'badge-payment-no'}" style="padding: 1px 6px; font-size: 0.7rem;">${item.paymentStatus}</span>`;
-            
-            let methodClass = 'badge-other';
-            if (item.paymentMethod === 'Efectivo') methodClass = 'badge-cash';
-            else if (item.paymentMethod === 'Transferencia') methodClass = 'badge-transfer';
-            else if (item.paymentMethod === 'Débito') methodClass = 'badge-debit';
-            else if (item.paymentMethod === 'Crédito') methodClass = 'badge-credit';
-            const methodBadge = item.paymentMethod && item.paymentMethod !== '-' ? `<span class="payment-badge ${methodClass}" style="padding: 1px 6px; font-size: 0.7rem;">${item.paymentMethod}</span>` : '-';
-            
-            const rawDateObj = item.rawDate ? new Date(item.rawDate + 'T00:00:00') : new Date();
-            const dateStrFormatted = rawDateObj.toLocaleDateString('es-AR');
-            
-            div.innerHTML = `
-                <div class="timeline-item" style="background: white; border-left: 4px solid #d97706; padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border); border-left-width: 4px; box-shadow: var(--shadow-sm); margin-bottom: 8px; text-align: left;">
-                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted-foreground); margin-bottom:5px;">
-                        <span>📅 ${dateStrFormatted} (Ingreso)</span>
-                        <span style="background: #fffbeb; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.7rem;">TALLER DE TURBOS</span>
-                    </div>
-                    <div style="font-weight: 700; font-size: 0.9rem; color: var(--dark-bg);">${item.turboDetails}</div>
-                    <div style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 3px;">
-                        Cliente: <strong>${item.clientName}</strong> ${item.contact ? `| Tel: ${item.contact}` : ''}
-                    </div>
-                    <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:8px;">
-                        ${budgetBadge} ${deliveryBadge} ${paymentBadge} ${item.paymentMethod && item.paymentMethod !== '-' ? methodBadge : ''}
-                    </div>
-                    <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.8rem; border-top:1px dashed var(--border); padding-top:6px; margin-top:6px;">
-                        <span style="color:var(--muted-foreground);">Taller: <strong>${days} días</strong> ${item.dateDelivery ? `(Entregado: ${new Date(item.dateDelivery + 'T00:00:00').toLocaleDateString('es-AR')})` : ''}</span>
-                        <strong style="color: var(--foreground); font-size: 0.85rem;">$${item.price.toFixed(2)}</strong>
-                    </div>
-                </div>
-            `;
-        }
+        });
         
-        timeline.appendChild(div);
+        const tableHtml = `
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: var(--muted-foreground); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em;">
+                            <th style="padding: 8px; text-align: left;">Fecha</th>
+                            <th style="padding: 8px; text-align: left;">Kilómetros</th>
+                            <th style="padding: 8px; text-align: left;">Trabajo Realizado / Notas</th>
+                            <th style="padding: 8px; text-align: left;">Precio</th>
+                            <th style="padding: 8px; text-align: left;">Cobro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        card.innerHTML = headerHtml + tableHtml;
+        timeline.appendChild(card);
     });
+    
+    // 5. Renderizar otros eventos (ventas directas o recepciones de turbos)
+    if (otherEvents.length > 0) {
+        otherEvents.sort((a, b) => b.date - a.date);
+        
+        const otherTitle = document.createElement('h4');
+        otherTitle.innerText = "Otros Eventos del Historial";
+        otherTitle.style.marginTop = '25px';
+        otherTitle.style.marginBottom = '12px';
+        otherTitle.style.fontFamily = "'Montserrat', sans-serif";
+        otherTitle.style.fontWeight = '800';
+        otherTitle.style.fontSize = '1rem';
+        otherTitle.style.color = 'var(--muted-foreground)';
+        otherTitle.style.borderBottom = '1px solid var(--border)';
+        otherTitle.style.paddingBottom = '6px';
+        otherTitle.style.textAlign = 'left';
+        timeline.appendChild(otherTitle);
+        
+        otherEvents.forEach(item => {
+            const div = document.createElement('div');
+            const dStr = item.date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            
+            if (item.type === 'sale') {
+                let paymentMethod = '-';
+                let displayName = item.name;
+                const methodMatch = item.name.match(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/);
+                if (methodMatch) {
+                    paymentMethod = methodMatch[1];
+                    displayName = item.name.replace(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/, '');
+                } else {
+                    paymentMethod = guessPaymentMethod(item);
+                }
+                
+                let badgeClass = 'badge-other';
+                if (paymentMethod === 'Efectivo') badgeClass = 'badge-cash';
+                else if (paymentMethod === 'Transferencia') badgeClass = 'badge-transfer';
+                else if (paymentMethod === 'Débito') badgeClass = 'badge-debit';
+                else if (paymentMethod === 'Crédito') badgeClass = 'badge-credit';
+                
+                const categoryLabel = item.category === 'turbos' ? 'VENTA TURBO' : 'VENTA LUBRICENTRO';
+                const badgeColor = item.category === 'turbos' ? '#b91c1c' : '#dc2626';
+                
+                div.innerHTML = `
+                    <div class="timeline-item" style="background: white; border-left: 4px solid ${badgeColor}; padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border); border-left-width: 4px; box-shadow: var(--shadow-sm); margin-bottom: 8px; text-align: left;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted-foreground); margin-bottom:5px;">
+                            <span>📅 ${dStr}</span>
+                            <span style="background: #fee2e2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.7rem;">${categoryLabel}</span>
+                        </div>
+                        <div style="font-weight: 700; font-size: 0.9rem; color: var(--dark-bg);">${displayName}</div>
+                        <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.8rem; flex-wrap:wrap; gap:5px;">
+                            <span style="color:var(--muted-foreground);">Cobro: <span class="payment-badge ${badgeClass}" style="padding: 1px 6px; font-size: 0.7rem;">${paymentMethod}</span></span>
+                            <strong style="color: var(--foreground); font-size: 0.85rem;">$${item.price.toFixed(2)}</strong>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const days = calculateDaysInShop(item.rawDate, item.dateDelivery, item.deliveryStatus);
+                
+                const budgetBadge = `<span class="status-badge ${item.budgetStatus === 'Presupuestado' ? 'badge-budget-presupuestado' : 'badge-budget-no'}" style="padding: 1px 6px; font-size: 0.7rem;">${item.budgetStatus}</span>`;
+                const deliveryBadge = `<span class="status-badge ${item.deliveryStatus === 'Entregado' ? 'badge-delivery-entregado' : 'badge-delivery-no'}" style="padding: 1px 6px; font-size: 0.7rem;">${item.deliveryStatus}</span>`;
+                const paymentBadge = `<span class="status-badge ${item.paymentStatus === 'Pagado' ? 'badge-payment-pagado' : 'badge-payment-no'}" style="padding: 1px 6px; font-size: 0.7rem;">${item.paymentStatus}</span>`;
+                
+                let methodClass = 'badge-other';
+                if (item.paymentMethod === 'Efectivo') methodClass = 'badge-cash';
+                else if (item.paymentMethod === 'Transferencia') methodClass = 'badge-transfer';
+                else if (item.paymentMethod === 'Débito') methodClass = 'badge-debit';
+                else if (item.paymentMethod === 'Crédito') methodClass = 'badge-credit';
+                const methodBadge = item.paymentMethod && item.paymentMethod !== '-' ? `<span class="payment-badge ${methodClass}" style="padding: 1px 6px; font-size: 0.7rem;">${item.paymentMethod}</span>` : '-';
+                
+                const rawDateObj = item.rawDate ? new Date(item.rawDate + 'T00:00:00') : new Date();
+                const dateStrFormatted = rawDateObj.toLocaleDateString('es-AR');
+                
+                div.innerHTML = `
+                    <div class="timeline-item" style="background: white; border-left: 4px solid #d97706; padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border); border-left-width: 4px; box-shadow: var(--shadow-sm); margin-bottom: 8px; text-align: left;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted-foreground); margin-bottom:5px;">
+                            <span>📅 ${dateStrFormatted} (Ingreso)</span>
+                            <span style="background: #fffbeb; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.7rem;">TALLER DE TURBOS</span>
+                        </div>
+                        <div style="font-weight: 700; font-size: 0.9rem; color: var(--dark-bg);">${item.turboDetails}</div>
+                        <div style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 3px;">
+                            Cliente: <strong>${item.clientName}</strong> ${item.contact ? `| Tel: ${item.contact}` : ''}
+                        </div>
+                        <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:8px;">
+                            ${budgetBadge} ${deliveryBadge} ${paymentBadge} ${item.paymentMethod && item.paymentMethod !== '-' ? methodBadge : ''}
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.8rem; border-top:1px dashed var(--border); padding-top:6px; margin-top:6px;">
+                            <span style="color:var(--muted-foreground);">Taller: <strong>${days} días</strong> ${item.dateDelivery ? `(Entregado: ${new Date(item.dateDelivery + 'T00:00:00').toLocaleDateString('es-AR')})` : ''}</span>
+                            <strong style="color: var(--foreground); font-size: 0.85rem;">$${item.price.toFixed(2)}</strong>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            timeline.appendChild(div);
+        });
+    }
     
     resultsContainer.classList.remove('hidden');
 }
