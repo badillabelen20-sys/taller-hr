@@ -1614,6 +1614,7 @@ async function loadCustomVehicles() {
 // --- SERVICE MANUAL ---
 function openServiceModal() {
     document.getElementById('service-id').value = '';
+    document.getElementById('service-original-date').value = '';
     const titleEl = document.querySelector('#service-modal h2');
     if (titleEl) titleEl.innerText = "⚙️ Registrar Service Manual";
     
@@ -1669,13 +1670,21 @@ function setupServiceModal() {
         
         if (serviceId) {
             newSale.id = serviceId;
-            const idx = sales.findIndex(s => s.id == serviceId);
+            const originalDate = document.getElementById('service-original-date').value;
+            const idx = sales.findIndex(s => 
+                (s.id == serviceId || (s.id === undefined && serviceId === 'undefined') || (s.id === null && serviceId === 'null')) &&
+                (!originalDate || s.date === originalDate)
+            );
             if (idx > -1) {
                 sales[idx] = newSale;
             }
             if (client) {
                 try {
-                    await client.from('ventas_taller_ro').update(newSale).eq('id', serviceId);
+                    if (serviceId && serviceId !== 'undefined' && serviceId !== 'null') {
+                        await client.from('ventas_taller_ro').update(newSale).eq('id', serviceId);
+                    } else if (originalDate) {
+                        await client.from('ventas_taller_ro').update(newSale).eq('item_id', 'SERVICE').eq('date', originalDate);
+                    }
                 } catch (err) {
                     console.error("Error al actualizar service en Supabase:", err);
                 }
@@ -1703,14 +1712,18 @@ function setupServiceModal() {
     };
 }
 
-function openEditServiceModal(id) {
-    const sale = sales.find(s => s.id == id);
+function openEditServiceModal(id, rawDate) {
+    const sale = sales.find(s => 
+        (s.id == id || (s.id === undefined && id === 'undefined') || (s.id === null && id === 'null')) && 
+        s.date === rawDate
+    );
     if (!sale) return;
     
     const parsed = parseServiceName(sale.name);
     if (!parsed) return;
     
     document.getElementById('service-id').value = sale.id || '';
+    document.getElementById('service-original-date').value = sale.date || '';
     document.getElementById('service-date').value = sale.date ? sale.date.split('T')[0] : '';
     document.getElementById('service-plate').value = parsed.plate || '';
     document.getElementById('service-km').value = parsed.km || '';
@@ -2753,7 +2766,7 @@ function searchVehicleHistory() {
                     <td style="padding: 10px 8px; white-space: nowrap;"><span class="payment-badge ${badgeClass}" style="font-size: 0.7rem; padding: 2px 6px;">${paymentMethod}</span></td>
                     <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
                         <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
-                            <button style="color: #3b82f6; border: none; background: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 2px 4px;" onclick="openEditServiceModal('${item.id}')" title="Editar este service">✏️</button>
+                            <button style="color: #3b82f6; border: none; background: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 2px 4px;" onclick="openEditServiceModal('${item.id}', '${item.rawDate}')" title="Editar este service">✏️</button>
                             <button style="color: #ef4444; border: none; background: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 2px 4px;" onclick="deleteSale('${item.id}', '${item.rawDate}')" title="Anular este service">🗑️</button>
                         </div>
                     </td>
