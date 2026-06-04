@@ -1613,6 +1613,10 @@ async function loadCustomVehicles() {
 
 // --- SERVICE MANUAL ---
 function openServiceModal() {
+    document.getElementById('service-id').value = '';
+    const titleEl = document.querySelector('#service-modal h2');
+    if (titleEl) titleEl.innerText = "⚙️ Registrar Service Manual";
+    
     document.getElementById('service-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('service-plate').value = '';
     document.getElementById('service-km').value = '';
@@ -1633,6 +1637,7 @@ function setupServiceModal() {
     if (!form) return;
     form.onsubmit = async (e) => {
         e.preventDefault();
+        const serviceId = document.getElementById('service-id').value;
         const dateVal = document.getElementById('service-date').value;
         const plate = document.getElementById('service-plate').value.toUpperCase().trim();
         const km = document.getElementById('service-km').value.trim();
@@ -1662,18 +1667,71 @@ function setupServiceModal() {
             date: saleDate 
         };
         
-        if (client) {
-            const { data } = await client.from('ventas_taller_ro').insert([newSale]).select();
-            if (data && data.length > 0) sales.push(data[0]);
-            else sales.push(newSale);
+        if (serviceId) {
+            newSale.id = serviceId;
+            const idx = sales.findIndex(s => s.id == serviceId);
+            if (idx > -1) {
+                sales[idx] = newSale;
+            }
+            if (client) {
+                try {
+                    await client.from('ventas_taller_ro').update(newSale).eq('id', serviceId);
+                } catch (err) {
+                    console.error("Error al actualizar service en Supabase:", err);
+                }
+            }
         } else {
-            sales.push(newSale);
+            if (client) {
+                const { data } = await client.from('ventas_taller_ro').insert([newSale]).select();
+                if (data && data.length > 0) sales.push(data[0]);
+                else sales.push(newSale);
+            } else {
+                sales.push(newSale);
+            }
         }
         
         await saveData();
         renderAll();
+        
+        // Refrescar el buscador de historial si está abierto en pantalla
+        const resultsPanel = document.getElementById('dash-history-results');
+        if (resultsPanel && !resultsPanel.classList.contains('hidden')) {
+            searchVehicleHistory();
+        }
+        
         closeServiceModal();
     };
+}
+
+function openEditServiceModal(id) {
+    const sale = sales.find(s => s.id == id);
+    if (!sale) return;
+    
+    const parsed = parseServiceName(sale.name);
+    if (!parsed) return;
+    
+    document.getElementById('service-id').value = sale.id || '';
+    document.getElementById('service-date').value = sale.date ? sale.date.split('T')[0] : '';
+    document.getElementById('service-plate').value = parsed.plate || '';
+    document.getElementById('service-km').value = parsed.km || '';
+    document.getElementById('service-client').value = parsed.client || '';
+    document.getElementById('service-phone').value = parsed.phone || '';
+    document.getElementById('service-vehicle').value = parsed.vehicle || '';
+    document.getElementById('service-price').value = sale.price || '';
+    document.getElementById('service-notes').value = parsed.notes || '';
+    
+    // Guess payment method
+    let paymentMethod = 'Efectivo';
+    const methodMatch = sale.name.match(/\s-\s(Efectivo|Transferencia|Débito|Crédito)$/);
+    if (methodMatch) paymentMethod = methodMatch[1];
+    else paymentMethod = guessPaymentMethod(sale);
+    document.getElementById('service-method').value = paymentMethod;
+    
+    // Change modal title to edit mode
+    const titleEl = document.querySelector('#service-modal h2');
+    if (titleEl) titleEl.innerText = "⚙️ Editar Service Manual";
+    
+    document.getElementById('service-modal').classList.remove('hidden');
 }
 
 // --- RECEPCION DE TURBOS ---
@@ -2694,7 +2752,10 @@ function searchVehicleHistory() {
                     <td style="padding: 10px 8px; font-weight: 700; color: var(--primary); white-space: nowrap;">${priceFormatted}</td>
                     <td style="padding: 10px 8px; white-space: nowrap;"><span class="payment-badge ${badgeClass}" style="font-size: 0.7rem; padding: 2px 6px;">${paymentMethod}</span></td>
                     <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
-                        <button style="color: #ef4444; border: none; background: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 2px 6px;" onclick="deleteSale('${item.id}', '${item.rawDate}')" title="Anular este service">🗑️</button>
+                        <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
+                            <button style="color: #3b82f6; border: none; background: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 2px 4px;" onclick="openEditServiceModal('${item.id}')" title="Editar este service">✏️</button>
+                            <button style="color: #ef4444; border: none; background: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 2px 4px;" onclick="deleteSale('${item.id}', '${item.rawDate}')" title="Anular este service">🗑️</button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -2710,7 +2771,7 @@ function searchVehicleHistory() {
                             <th style="padding: 8px; text-align: left;">Trabajo Realizado / Notas</th>
                             <th style="padding: 8px; text-align: left;">Precio</th>
                             <th style="padding: 8px; text-align: left;">Cobro</th>
-                            <th style="padding: 8px; text-align: center; width: 60px;">Acción</th>
+                            <th style="padding: 8px; text-align: center; width: 80px;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
