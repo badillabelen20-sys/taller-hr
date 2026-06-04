@@ -1050,7 +1050,7 @@ function copyBudgetToWhatsApp() {
     const name = document.getElementById('budget-search').value.toUpperCase();
     const items = document.getElementById('budget-items').innerText;
     const total = document.getElementById('budget-total').innerText;
-    const text = `📋 *Presupuesto Service - Taller Ro*\n🚗 *Vehículo:* ${name}\n\n${items}\n💰 *${total}*\n\n_Precios sujetos a cambios._`;
+    const text = `📋 *Presupuesto Service - Taller HR*\n🚗 *Vehículo:* ${name}\n\n${items}\n💰 *${total}*\n\n_Validez del presupuesto: 7 días_\n_Precios sujetos a cambios._`;
     
     navigator.clipboard.writeText(text).then(() => {
         const phone = prompt("¡Presupuesto copiado al portapapeles!\n\nSi deseas enviarlo directamente por WhatsApp, ingresa el número del cliente (ej: 5493416123456) y presiona Aceptar. Si solo querías copiarlo, presiona Cancelar:", "");
@@ -1381,12 +1381,12 @@ function updateWhatsAppMessageTemplate() {
     let text = '';
     
     if (templateType === 'ingreso') {
-        text = `🔧 *Ingreso de Turbo - Taller Ro*\n\nHola *${clientName}*, te confirmamos que tu turbo *${turboDetails}* ingresó al taller en la fecha *${fIngress}*.\n\nEn breve nuestro equipo técnico comenzará con la revisión para realizar el diagnóstico y presupuesto. Nos contactaremos con vos apenas tengamos novedades.\n\n¡Muchas gracias!`;
+        text = `🔧 *Ingreso de Turbo - Taller HR*\n\nHola *${clientName}*, te confirmamos que tu turbo *${turboDetails}* ingresó al taller en la fecha *${fIngress}*.\n\nEn breve nuestro equipo técnico comenzará con la revisión para realizar el diagnóstico y presupuesto. Nos contactaremos con vos apenas tengamos novedades.\n\n¡Muchas gracias!`;
     } else if (templateType === 'presupuesto') {
-        text = `📋 *Presupuesto Listo - Taller Ro*\n\nHola *${clientName}*, ya tenemos el diagnóstico de tu turbo *${turboDetails}*.\n\n💰 *Costo de reparación:* ${fCost}\n💳 *Estado de pago:* ${paymentStatus}\n\nPor favor, confirmanos si procedemos con la reparación del mismo.\n\nCualquier duda quedamos a disposición. ¡Saludos!`;
+        text = `📋 *Presupuesto Listo - Taller HR*\n\nHola *${clientName}*, ya tenemos el diagnóstico de tu turbo *${turboDetails}*.\n\n💰 *Costo de reparación:* ${fCost}\n💳 *Estado de pago:* ${paymentStatus}\n⏱️ *Validez del presupuesto:* 7 días\n\nPor favor, confirmanos si procedemos con la reparación del mismo.\n\nCualquier duda quedamos a disposición. ¡Saludos!`;
     } else if (templateType === 'entrega') {
         const paymentInfo = rec.paymentStatus === 'Pagado' ? 'El mismo ya se encuentra registrado como PAGADO.' : `Costo: ${fCost} (${paymentStatus}).`;
-        text = `🚗 *Listo para Retirar - Taller Ro*\n\nHola *${clientName}*, te informamos que el trabajo en tu turbo *${turboDetails}* ha sido completado con éxito.\n\nYa podés pasar a retirarlo por el taller.\n\nℹ️ *Información:* ${paymentInfo}\n\n¡Te esperamos! Saludos del equipo de Taller Ro.`;
+        text = `🚗 *Listo para Retirar - Taller HR*\n\nHola *${clientName}*, te informamos que el trabajo en tu turbo *${turboDetails}* ha sido completado con éxito.\n\nYa podés pasar a retirarlo por el taller.\n\nℹ️ *Información:* ${paymentInfo}\n\n¡Te esperamos! Saludos del equipo de Taller HR.`;
     }
     
     document.getElementById('wa-message-text').value = text;
