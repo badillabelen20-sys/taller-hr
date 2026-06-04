@@ -2256,7 +2256,8 @@ function searchVehicleHistory() {
             category: s.category,
             name: s.name,
             price: parseFloat(s.price) || 0,
-            itemId: s.item_id
+            itemId: s.item_id,
+            id: s.id
         };
     });
     
@@ -2387,7 +2388,7 @@ function searchVehicleHistory() {
                     <td style="padding: 10px 8px; font-weight: 700; color: var(--primary); white-space: nowrap;">${priceFormatted}</td>
                     <td style="padding: 10px 8px; white-space: nowrap;"><span class="payment-badge ${badgeClass}" style="font-size: 0.7rem; padding: 2px 6px;">${paymentMethod}</span></td>
                     <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
-                        <button style="color: #ef4444; border: none; background: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 2px 6px;" onclick="deleteSale('${item.itemId || item.id}', '${item.rawDate}')" title="Anular este service">🗑️</button>
+                        <button style="color: #ef4444; border: none; background: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; padding: 2px 6px;" onclick="deleteSale('${item.id}', '${item.rawDate}')" title="Anular este service">🗑️</button>
                     </td>
                 </tr>
             `;
