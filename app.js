@@ -1770,45 +1770,37 @@ function renderReceptions(filter = '') {
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const todayStr = today.toISOString().split('T')[0];
     const currentYearMonth = `${yyyy}-${mm}`;
     
-    const prevMonthDate = new Date(yyyy, today.getMonth() - 1, 1);
-    const prevY = prevMonthDate.getFullYear();
-    const prevM = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
-    const prevYearMonth = `${prevY}-${prevM}`;
-    
-    let sumToday = 0;
-    let sumMonth = 0;
-    let sumPrevMonth = 0;
+    let sumGross = 0;
+    let sumNet = 0;
+    let sumMonthNet = 0;
     let sumUnpaid = 0;
     
     receptions.forEach(r => {
         const cost = parseFloat(r.price) || 0;
+        const repCost = parseFloat(r.repairCost) || 0;
         if (r.paymentStatus === 'Pagado') {
+            sumGross += cost;
+            sumNet += (cost - repCost);
+            
             const payDate = r.dateDelivery || r.dateIngress || '';
-            if (payDate === todayStr) {
-                sumToday += cost;
-            }
             if (payDate.startsWith(currentYearMonth)) {
-                sumMonth += cost;
-            }
-            if (payDate.startsWith(prevYearMonth)) {
-                sumPrevMonth += cost;
+                sumMonthNet += (cost - repCost);
             }
         } else {
             sumUnpaid += cost;
         }
     });
     
-    const elToday = document.getElementById('reception-sum-today');
-    const elMonth = document.getElementById('reception-sum-month');
-    const elPrevMonth = document.getElementById('reception-sum-prev-month');
+    const elGross = document.getElementById('reception-sum-gross');
+    const elNet = document.getElementById('reception-sum-net');
+    const elMonthNet = document.getElementById('reception-sum-month-net');
     const elUnpaid = document.getElementById('reception-sum-unpaid');
     
-    if (elToday) elToday.innerText = `$${sumToday.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (elMonth) elMonth.innerText = `$${sumMonth.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (elPrevMonth) elPrevMonth.innerText = `$${sumPrevMonth.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elGross) elGross.innerText = `$${sumGross.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elNet) elNet.innerText = `$${sumNet.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elMonthNet) elMonthNet.innerText = `$${sumMonthNet.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (elUnpaid) elUnpaid.innerText = `$${sumUnpaid.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     
     const filtered = receptions.filter(r => {
@@ -1839,6 +1831,7 @@ function renderReceptions(filter = '') {
         
         const methodBadge = r.paymentMethod && r.paymentMethod !== '-' ? `<span class="payment-badge ${methodClass}">${r.paymentMethod}</span>` : '-';
         const safeCost = parseFloat(r.price) || 0;
+        const safeRepairCost = parseFloat(r.repairCost) || 0;
         
         tr.innerHTML = `
             <td>${fIngress}</td>
@@ -1847,6 +1840,7 @@ function renderReceptions(filter = '') {
             <td>${r.turboDetails}</td>
             <td>${budgetBadge}</td>
             <td>$${safeCost.toFixed(2)}</td>
+            <td>$${safeRepairCost.toFixed(2)}</td>
             <td>${deliveryBadge}</td>
             <td style="text-align: center;"><strong>${days}</strong></td>
             <td>${paymentBadge}</td>
@@ -1876,6 +1870,7 @@ function openEditReceptionModal(id) {
     document.getElementById('reception-turbo-details').value = rec.turboDetails || '';
     document.getElementById('reception-budget-status').value = rec.budgetStatus || 'No presupuestado';
     document.getElementById('reception-cost').value = rec.price || 0;
+    document.getElementById('reception-repair-cost').value = rec.repairCost || 0;
     document.getElementById('reception-delivery-status').value = rec.deliveryStatus || 'No entregado';
     document.getElementById('reception-payment-status').value = rec.paymentStatus || 'No pagado';
     document.getElementById('reception-payment-method').value = rec.paymentMethod || '-';
@@ -1896,6 +1891,7 @@ function openReceptionModal() {
     document.getElementById('reception-turbo-details').value = '';
     document.getElementById('reception-budget-status').value = 'No presupuestado';
     document.getElementById('reception-cost').value = 0;
+    document.getElementById('reception-repair-cost').value = 0;
     document.getElementById('reception-delivery-status').value = 'No entregado';
     document.getElementById('reception-payment-status').value = 'No pagado';
     document.getElementById('reception-payment-method').value = '-';
@@ -1983,6 +1979,7 @@ function setupReception() {
             turboDetails: document.getElementById('reception-turbo-details').value,
             budgetStatus: document.getElementById('reception-budget-status').value,
             price: parseFloat(document.getElementById('reception-cost').value) || 0,
+            repairCost: parseFloat(document.getElementById('reception-repair-cost').value) || 0,
             deliveryStatus: document.getElementById('reception-delivery-status').value,
             paymentStatus: document.getElementById('reception-payment-status').value,
             paymentMethod: document.getElementById('reception-payment-method').value
