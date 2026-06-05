@@ -1776,6 +1776,7 @@ function renderReceptions(filter = '') {
     let sumNet = 0;
     let sumMonthNet = 0;
     let sumUnpaid = 0;
+    const monthlyData = {};
     
     receptions.forEach(r => {
         const cost = parseFloat(r.price) || 0;
@@ -1787,6 +1788,15 @@ function renderReceptions(filter = '') {
             const payDate = r.dateDelivery || r.dateIngress || '';
             if (payDate.startsWith(currentYearMonth)) {
                 sumMonthNet += (cost - repCost);
+            }
+            
+            if (payDate) {
+                const yearMonth = payDate.substring(0, 7);
+                if (!monthlyData[yearMonth]) {
+                    monthlyData[yearMonth] = { gross: 0, repair: 0 };
+                }
+                monthlyData[yearMonth].gross += cost;
+                monthlyData[yearMonth].repair += repCost;
             }
         } else {
             sumUnpaid += cost;
@@ -1802,6 +1812,41 @@ function renderReceptions(filter = '') {
     if (elNet) elNet.innerText = `$${sumNet.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (elMonthNet) elMonthNet.innerText = `$${sumMonthNet.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (elUnpaid) elUnpaid.innerText = `$${sumUnpaid.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
+    // Render Monthly Earnings Table
+    const tbodyMonthly = document.querySelector('#table-monthly-earnings tbody');
+    if (tbodyMonthly) {
+        tbodyMonthly.innerHTML = '';
+        const sortedKeys = Object.keys(monthlyData).sort((a, b) => b.localeCompare(a));
+        if (sortedKeys.length === 0) {
+            tbodyMonthly.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--muted-foreground);">No hay cobros registrados en la base de datos.</td></tr>`;
+        } else {
+            sortedKeys.forEach(ym => {
+                const parts = ym.split('-');
+                const year = parts[0];
+                const monthNum = parseInt(parts[1], 10);
+                const monthNames = [
+                    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+                ];
+                const monthName = monthNames[monthNum - 1] || 'Mes Desconocido';
+                const displayName = `${monthName} ${year}`;
+                
+                const data = monthlyData[ym];
+                const net = data.gross - data.repair;
+                
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid var(--border)';
+                tr.innerHTML = `
+                    <td style="padding: 8px; font-weight: bold;">${displayName}</td>
+                    <td style="padding: 8px; text-align: right; color: #166534; font-weight: 600;">$${data.gross.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td style="padding: 8px; text-align: right; color: #991b1b;">$${data.repair.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td style="padding: 8px; text-align: right; color: #1e3a8a; font-weight: bold;">$${net.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                `;
+                tbodyMonthly.appendChild(tr);
+            });
+        }
+    }
     
     const filtered = receptions.filter(r => {
         if (!filter) return true;
@@ -2916,6 +2961,11 @@ async function apply21PercentIncrease() {
     await saveData();
     renderAll();
     alert(`¡Éxito! Se actualizaron los precios de ${count} productos en un 21%.`);
+}
+
+function toggleMonthlyEarningsHistory() {
+    const el = document.getElementById('monthly-earnings-content');
+    if (el) el.classList.toggle('hidden');
 }
 
 init();

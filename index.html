@@ -452,6 +452,31 @@
                 </div>
             </div>
 
+            <!-- Historial Mensual de Ganancias -->
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); margin-bottom: 1.5rem; margin-top: 0.5rem;">
+                <h3 style="font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 1rem; color: var(--dark-bg); margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📈 Historial de Ganancias por Mes</span>
+                    <button class="btn btn-outline" style="font-size: 0.75rem; padding: 4px 10px; height: auto;" onclick="toggleMonthlyEarningsHistory()">Ver Listado</button>
+                </h3>
+                <div id="monthly-earnings-content" class="hidden" style="margin-top: 1.25rem;">
+                    <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;" id="table-monthly-earnings">
+                            <thead>
+                                <tr style="background-color: var(--muted); border-bottom: 2px solid var(--border); font-size: 0.75rem; text-transform: uppercase;">
+                                    <th style="padding: 8px; text-align: left;">Mes / Año</th>
+                                    <th style="padding: 8px; text-align: right; color: #166534;">Ganancia Bruta</th>
+                                    <th style="padding: 8px; text-align: right; color: #991b1b;">Costo Reparaciones</th>
+                                    <th style="padding: 8px; text-align: right; color: #1e3a8a;">Ganancia Neta (Bolsillo)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Rellenado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <input type="text" class="search-bar" id="search-reception" placeholder="Buscar por cliente, contacto o datos del turbo..." style="margin-top: 0.5rem; margin-bottom: 1.5rem;">
             
             <div class="table-container">
