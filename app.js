@@ -320,7 +320,7 @@ function renderLubricentro(filter = '') {
         }
         const tr = document.createElement('tr');
         const safePrice = parseFloat(item.price) || 0;
-        tr.innerHTML = `<td>${item.type || '-'}</td><td><strong>${item.id}</strong></td><td>${item.name}</td><td>$${safePrice.toFixed(0)}</td><td class="${item.stock <= 5 ? 'stock-low' : ''}">${item.stock}</td><td><button onclick="changeStock('lubricentro', ${index}, -1)">-</button><button onclick="changeStock('lubricentro', ${index}, 1)">+</button><button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:2px 5px; margin-left:5px;" onclick="openEditModal('lubricentro', ${index})">✏️</button></td>`;
+        tr.innerHTML = `<td>${item.type || '-'}</td><td><strong>${item.id}</strong></td><td>${item.name}</td><td>$${safePrice.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td><td class="${item.stock <= 5 ? 'stock-low' : ''}">${item.stock}</td><td><button onclick="changeStock('lubricentro', ${index}, -1)">-</button><button onclick="changeStock('lubricentro', ${index}, 1)">+</button><button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:2px 5px; margin-left:5px;" onclick="openEditModal('lubricentro', ${index})">✏️</button></td>`;
         tbody.appendChild(tr);
     });
 }
@@ -550,10 +550,10 @@ function setupPOS() {
                     const displayD = isLub ? roundTo5(d) : d;
                     const displayCr = isLub ? roundTo5(cr) : cr;
                     
-                    const cashText = isLub ? displayC.toFixed(0) : displayC.toFixed(2);
-                    const transText = isLub ? displayC.toFixed(0) : displayC.toFixed(2);
-                    const debitText = isLub ? displayD.toFixed(0) : displayD.toFixed(2);
-                    const creditText = isLub ? displayCr.toFixed(0) : displayCr.toFixed(2);
+                    const cashText = isLub ? displayC.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : displayC.toFixed(2);
+                    const transText = isLub ? displayC.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : displayC.toFixed(2);
+                    const debitText = isLub ? displayD.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : displayD.toFixed(2);
+                    const creditText = isLub ? displayCr.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : displayCr.toFixed(2);
                     
                     document.getElementById('pos-selected-info').innerHTML = `
                         <div class="pos-card">
@@ -622,10 +622,10 @@ function updatePOSPrices() {
     const displayDebit = isLub ? roundTo5(debitPrice) : debitPrice;
     const displayCredit = isLub ? roundTo5(creditPrice) : creditPrice;
     
-    document.getElementById('pos-price-cash').innerText = `$${isLub ? displayBase.toFixed(0) : totalBase.toFixed(2)}`;
-    document.getElementById('pos-price-transfer').innerText = `$${isLub ? displayBase.toFixed(0) : totalBase.toFixed(2)}`;
-    document.getElementById('pos-price-debit').innerText = `$${isLub ? displayDebit.toFixed(0) : debitPrice.toFixed(2)}`;
-    document.getElementById('pos-price-credit').innerText = `$${isLub ? displayCredit.toFixed(0) : creditPrice.toFixed(2)}`;
+    document.getElementById('pos-price-cash').innerText = `$${isLub ? displayBase.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : totalBase.toFixed(2)}`;
+    document.getElementById('pos-price-transfer').innerText = `$${isLub ? displayBase.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : totalBase.toFixed(2)}`;
+    document.getElementById('pos-price-debit').innerText = `$${isLub ? displayDebit.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : debitPrice.toFixed(2)}`;
+    document.getElementById('pos-price-credit').innerText = `$${isLub ? displayCredit.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : creditPrice.toFixed(2)}`;
 }
 
 function triggerPOSSale(cat, index, method) {
@@ -1312,7 +1312,7 @@ function searchInWega(query) {
                         <span style="background:${brandColor}; color:white; font-size:0.7rem; font-weight:bold; padding:2px 6px; border-radius:4px;">${brandText}</span>
                     </div>
                     <small>${f.desc}</small>
-                    <div style="color:var(--primary); font-weight:bold;">$${roundTo5(f.price * 1.6).toFixed(0)}</div>
+                    <div style="color:var(--primary); font-weight:bold;">$${roundTo5(f.price * 1.6).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
                 `;
                 item.onclick = () => selectFilter(type, f);
                 optionsGrid.appendChild(item);
@@ -1563,7 +1563,7 @@ function calculateBudgetTotal() {
         if (f && type !== 'oil_liters' && type !== 'oil_price_l' && type !== 'oil_name') {
             const price = roundTo5(f.price * 1.6);
             total += price;
-            const priceText = price > 0 ? `$${price.toFixed(0)}` : `<span style="color:#ef4444; font-weight:600; font-size:0.8rem;">(Sin precio - Catálogo)</span>`;
+            const priceText = price > 0 ? `$${price.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : `<span style="color:#ef4444; font-weight:600; font-size:0.8rem;">(Sin precio - Catálogo)</span>`;
             itemsDiv.innerHTML += `<p><span>[${f.brand}] ${type.toUpperCase()} (${f.code})</span> <span>${priceText}</span></p>`;
         }
     });
@@ -1572,17 +1572,17 @@ function calculateBudgetTotal() {
     if (currentSelection.oil_price_l && oilLiters > 0) {
         const cost = roundTo5(currentSelection.oil_price_l * oilLiters);
         total += cost;
-        itemsDiv.innerHTML += `<p><span>Aceite (${currentSelection.oil_name} x${oilLiters}L)</span> <span>$${cost.toFixed(0)}</span></p>`;
+        itemsDiv.innerHTML += `<p><span>Aceite (${currentSelection.oil_name} x${oilLiters}L)</span> <span>$${cost.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span></p>`;
     }
 
     const labor = parseFloat(document.getElementById('budget-labor').value) || 0;
     if (labor > 0) {
         const roundedLabor = roundTo5(labor);
         total += roundedLabor;
-        itemsDiv.innerHTML += `<p><span>Mano de Obra</span> <span>$${roundedLabor.toFixed(0)}</span></p>`;
+        itemsDiv.innerHTML += `<p><span>Mano de Obra</span> <span>$${roundedLabor.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span></p>`;
     }
 
-    totalDiv.innerHTML = `<h3>Total Calculado: $${total.toFixed(0)}</h3>`;
+    totalDiv.innerHTML = `<h3>Total Calculado: $${total.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</h3>`;
     resultCard.classList.remove('hidden');
 }
 
