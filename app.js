@@ -679,15 +679,24 @@ async function deleteSale(id, date) {
     const idx = sales.findIndex(s => (s.id == id || (s.id === undefined && id === 'undefined') || (s.id === null && id === 'null')) && s.date === date);
     if (idx > -1) {
         const s = sales[idx]; 
+        
+        if (s.item_id === 'SERVICE') {
+            const parsed = parseServiceName(s.name);
+            if (parsed && parsed.insumos) {
+                applyStockAdjustment(parsed.insumos, null);
+            }
+        } else {
+            const productCode = s.item_id || s.id;
+            const item = inventory[s.category] ? inventory[s.category].find(i => i.id === productCode) : null;
+            
+            let qtyToReturn = 1;
+            const match = s.name.match(/\(x(\d+)\)/);
+            if (match) qtyToReturn = parseInt(match[1], 10);
+            
+            if (item) item.stock += qtyToReturn;
+        }
+        
         const productCode = s.item_id || s.id;
-        const item = inventory[s.category].find(i => i.id === productCode);
-        
-        let qtyToReturn = 1;
-        const match = s.name.match(/\(x(\d+)\)/);
-        if (match) qtyToReturn = parseInt(match[1], 10);
-        
-        if (item) item.stock += qtyToReturn;
-        
         if (client) {
             if (s.id) await client.from('ventas_taller_ro').delete().eq('id', s.id);
             else await client.from('ventas_taller_ro').delete().eq('item_id', productCode).eq('date', date);
@@ -1663,6 +1672,97 @@ async function loadCustomVehicles() {
     });
 }
 
+function applyStockAdjustment(oldInsumos, newInsumos) {
+    if (oldInsumos) {
+        if (oldInsumos.oil) {
+            const item = inventory.lubricentro.find(i => i.id === oldInsumos.oil);
+            if (item) item.stock = Math.round((item.stock + parseFloat(oldInsumos.oil_qty || 0)) * 100) / 100;
+        }
+        if (oldInsumos.filters && Array.isArray(oldInsumos.filters)) {
+            oldInsumos.filters.forEach(fid => {
+                const item = inventory.lubricentro.find(i => i.id === fid);
+                if (item) item.stock += 1;
+            });
+        }
+    }
+    if (newInsumos) {
+        if (newInsumos.oil) {
+            const item = inventory.lubricentro.find(i => i.id === newInsumos.oil);
+            if (item) item.stock = Math.round((item.stock - parseFloat(newInsumos.oil_qty || 0)) * 100) / 100;
+        }
+        if (newInsumos.filters && Array.isArray(newInsumos.filters)) {
+            newInsumos.filters.forEach(fid => {
+                const item = inventory.lubricentro.find(i => i.id === fid);
+                if (item) item.stock -= 1;
+            });
+        }
+    }
+}
+
+function populateServiceModalSelects() {
+    const oilSelect = document.getElementById('service-oil');
+    const filterOilSelect = document.getElementById('service-filter-oil');
+    const filterAirSelect = document.getElementById('service-filter-air');
+    const filterFuelSelect = document.getElementById('service-filter-fuel');
+    const filterCabinSelect = document.getElementById('service-filter-cabin');
+    
+    if (!oilSelect) return;
+    
+    oilSelect.innerHTML = '<option value="">-- No utilizar aceite del stock --</option>';
+    filterOilSelect.innerHTML = '<option value="">-- No lleva / No cambiar --</option>';
+    filterAirSelect.innerHTML = '<option value="">-- No lleva / No cambiar --</option>';
+    filterFuelSelect.innerHTML = '<option value="">-- No lleva / No cambiar --</option>';
+    filterCabinSelect.innerHTML = '<option value="">-- No lleva / No cambiar --</option>';
+    
+    const lubItems = [...inventory.lubricentro].sort((a,b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+    
+    lubItems.forEach(item => {
+        const id = item.id;
+        const name = item.name;
+        const stock = item.stock;
+        const nameUpper = name.toUpperCase();
+        
+        const isOil = (nameUpper.includes("ACEITE") || nameUpper.includes("VALVOLINE") || nameUpper.includes("SHELL") || nameUpper.includes("MOTUL") || nameUpper.includes("WANDER") || nameUpper.includes("EXTRIMA") || nameUpper.includes("CASTROL")) && !nameUpper.includes("FILTRO");
+        
+        if (isOil) {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.innerText = `${name} (Stock: ${stock})`;
+            oilSelect.appendChild(opt);
+        }
+        
+        const isFilterOil = item.type === 'Aceite' || nameUpper.includes("FILTRO ACEITE") || id.startsWith("WEO") || id.startsWith("WO") || id.startsWith("HU") || id.startsWith("WP") || id.startsWith("W ");
+        const isFilterAir = item.type === 'Aire' || nameUpper.includes("FILTRO AIRE") || id.startsWith("FAP") || id.startsWith("WAP") || id.startsWith("C ") || id.startsWith("CF");
+        const isFilterFuel = item.type === 'Combustible' || nameUpper.includes("FILTRO COMBUSTIBLE") || id.startsWith("FCI") || id.startsWith("FCD") || id.startsWith("FCE") || id.startsWith("WK") || id.startsWith("PU");
+        const isFilterCabin = item.type === 'Habitáculo' || nameUpper.includes("FILTRO HABITACULO") || id.startsWith("AKX") || id.startsWith("CU") || id.startsWith("FP");
+        
+        if (isFilterOil) {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.innerText = `[${id}] ${name} (Stock: ${stock})`;
+            filterOilSelect.appendChild(opt);
+        }
+        if (isFilterAir) {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.innerText = `[${id}] ${name} (Stock: ${stock})`;
+            filterAirSelect.appendChild(opt);
+        }
+        if (isFilterFuel) {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.innerText = `[${id}] ${name} (Stock: ${stock})`;
+            filterFuelSelect.appendChild(opt);
+        }
+        if (isFilterCabin) {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.innerText = `[${id}] ${name} (Stock: ${stock})`;
+            filterCabinSelect.appendChild(opt);
+        }
+    });
+}
+
 // --- SERVICE MANUAL ---
 function openServiceModal() {
     document.getElementById('service-id').value = '';
@@ -1678,6 +1778,17 @@ function openServiceModal() {
     document.getElementById('service-vehicle').value = '';
     document.getElementById('service-price').value = '';
     document.getElementById('service-notes').value = '';
+    
+    // Reset stock selections
+    populateServiceModalSelects();
+    document.getElementById('service-oil').value = '';
+    document.getElementById('service-oil-qty').value = 0;
+    document.getElementById('service-oil-qty-label').innerText = "Cantidad (Litros)";
+    document.getElementById('service-filter-oil').value = '';
+    document.getElementById('service-filter-air').value = '';
+    document.getElementById('service-filter-fuel').value = '';
+    document.getElementById('service-filter-cabin').value = '';
+    
     document.getElementById('service-modal').classList.remove('hidden');
 }
 
@@ -1688,6 +1799,32 @@ function closeServiceModal() {
 function setupServiceModal() {
     const form = document.getElementById('service-form');
     if (!form) return;
+    
+    // Escuchar el cambio en el selector de aceite para cambiar la etiqueta y valor
+    const oilSelect = document.getElementById('service-oil');
+    const qtyInput = document.getElementById('service-oil-qty');
+    const qtyLabel = document.getElementById('service-oil-qty-label');
+    
+    if (oilSelect && qtyInput && qtyLabel) {
+        oilSelect.addEventListener('change', () => {
+            const selectedOpt = oilSelect.options[oilSelect.selectedIndex];
+            const selectedText = selectedOpt ? selectedOpt.innerText.toUpperCase() : '';
+            if (oilSelect.value === '') {
+                qtyInput.value = 0;
+                qtyLabel.innerText = "Cantidad (Litros)";
+            } else {
+                const isBulk = selectedText.includes("TAMBOR") || selectedText.includes("SUELTO") || selectedText.includes("X LITRO") || (selectedText.includes("LITRO") && !selectedText.includes("4L") && !selectedText.includes("1L"));
+                if (isBulk) {
+                    qtyLabel.innerText = "Cantidad (Litros)";
+                    qtyInput.value = 4.0;
+                } else {
+                    qtyLabel.innerText = "Cantidad (Unidades/Bidón)";
+                    qtyInput.value = 1;
+                }
+            }
+        });
+    }
+
     form.onsubmit = async (e) => {
         e.preventDefault();
         const serviceId = document.getElementById('service-id').value;
@@ -1701,6 +1838,24 @@ function setupServiceModal() {
         const method = document.getElementById('service-method').value;
         const notes = document.getElementById('service-notes').value.trim();
         
+        // Capturar insumos seleccionados
+        const oilId = document.getElementById('service-oil').value;
+        const oilQty = parseFloat(document.getElementById('service-oil-qty').value) || 0;
+        const filterOilId = document.getElementById('service-filter-oil').value;
+        const filterAirId = document.getElementById('service-filter-air').value;
+        const filterFuelId = document.getElementById('service-filter-fuel').value;
+        const filterCabinId = document.getElementById('service-filter-cabin').value;
+        
+        const selectedInsumos = {
+            oil: oilId || null,
+            oil_qty: oilId ? oilQty : 0,
+            filter_oil: filterOilId || null,
+            filter_air: filterAirId || null,
+            filter_fuel: filterFuelId || null,
+            filter_cabin: filterCabinId || null,
+            filters: [filterOilId, filterAirId, filterFuelId, filterCabinId].filter(Boolean)
+        };
+        
         let saleName = `⚙️ SERVICE: ${vehicle}`;
         if (plate) saleName += ` [Patente: ${plate}]`;
         if (km) saleName += ` [Km: ${km}]`;
@@ -1708,6 +1863,11 @@ function setupServiceModal() {
         if (phone) saleName += ` (Tel: ${phone})`;
         if (notes) saleName += ` | Notas: ${notes}`;
         saleName += ` - ${method}`;
+        
+        const hasInsumos = oilId || filterOilId || filterAirId || filterFuelId || filterCabinId;
+        if (hasInsumos) {
+            saleName += ` | Insumos: ${JSON.stringify(selectedInsumos)}`;
+        }
         
         // Formatear fecha para preservar la hora al mediodía local
         const saleDate = dateVal ? new Date(dateVal + 'T12:00:00').toISOString() : new Date().toISOString();
@@ -1728,6 +1888,12 @@ function setupServiceModal() {
                 (!originalDate || s.date === originalDate)
             );
             if (idx > -1) {
+                // Obtener insumos anteriores para revertir stock
+                const oldSale = sales[idx];
+                const parsedOld = parseServiceName(oldSale.name);
+                const oldInsumos = parsedOld ? parsedOld.insumos : null;
+                applyStockAdjustment(oldInsumos, selectedInsumos);
+                
                 sales[idx] = newSale;
             }
             if (client) {
@@ -1742,6 +1908,9 @@ function setupServiceModal() {
                 }
             }
         } else {
+            // Descontar stock de insumos nuevos
+            applyStockAdjustment(null, selectedInsumos);
+            
             if (client) {
                 const { data } = await client.from('ventas_taller_ro').insert([newSale]).select();
                 if (data && data.length > 0) sales.push(data[0]);
@@ -1791,6 +1960,31 @@ function openEditServiceModal(id, rawDate) {
     if (methodMatch) paymentMethod = methodMatch[1];
     else paymentMethod = guessPaymentMethod(sale);
     document.getElementById('service-method').value = paymentMethod;
+    
+    // Poblar selectores de insumos y pre-seleccionar los guardados
+    populateServiceModalSelects();
+    const ins = parsed.insumos || {};
+    document.getElementById('service-oil').value = ins.oil || '';
+    document.getElementById('service-oil-qty').value = ins.oil_qty || 0;
+    
+    // Ajustar etiqueta de cantidad de aceite
+    const oilSelect = document.getElementById('service-oil');
+    const qtyLabel = document.getElementById('service-oil-qty-label');
+    if (oilSelect && qtyLabel) {
+        const selectedOpt = oilSelect.options[oilSelect.selectedIndex];
+        const selectedText = selectedOpt ? selectedOpt.innerText.toUpperCase() : '';
+        const isBulk = selectedText.includes("TAMBOR") || selectedText.includes("SUELTO") || selectedText.includes("X LITRO") || (selectedText.includes("LITRO") && !selectedText.includes("4L") && !selectedText.includes("1L"));
+        if (isBulk) {
+            qtyLabel.innerText = "Cantidad (Litros)";
+        } else {
+            qtyLabel.innerText = "Cantidad (Unidades/Bidón)";
+        }
+    }
+    
+    document.getElementById('service-filter-oil').value = ins.filter_oil || '';
+    document.getElementById('service-filter-air').value = ins.filter_air || '';
+    document.getElementById('service-filter-fuel').value = ins.filter_fuel || '';
+    document.getElementById('service-filter-cabin').value = ins.filter_cabin || '';
     
     // Change modal title to edit mode
     const titleEl = document.querySelector('#service-modal h2');
@@ -2674,6 +2868,16 @@ function parseServiceName(name) {
     const clientMatch = name.match(/-\s*Cliente:\s*([^\(|\||-]+)/i);
     const phoneMatch = name.match(/\(Tel:\s*([^\)]+)\)/i);
     const notesMatch = name.match(/\|\s*Notas:\s*([^|-]+)/i);
+    const insumosMatch = name.match(/\|\s*Insumos:\s*(\{.*\})/i);
+    
+    let insumos = null;
+    if (insumosMatch) {
+        try {
+            insumos = JSON.parse(insumosMatch[1]);
+        } catch (e) {
+            console.error("Error parsing insumos JSON from name:", e);
+        }
+    }
     
     let vehicle = '';
     const serviceIndex = name.indexOf('SERVICE:');
@@ -2689,7 +2893,8 @@ function parseServiceName(name) {
         km: kmMatch ? kmMatch[1].trim() : '',
         client: clientMatch ? clientMatch[1].trim() : '',
         phone: phoneMatch ? phoneMatch[1].trim() : '',
-        notes: notesMatch ? notesMatch[1].trim() : ''
+        notes: notesMatch ? notesMatch[1].trim() : '',
+        insumos: insumos
     };
 }
 

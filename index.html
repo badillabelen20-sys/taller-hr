@@ -683,6 +683,58 @@
                     <label>Notas Adicionales (Opcional)</label>
                     <input type="text" id="service-notes" placeholder="Ej: Cambio de aceite, filtros, etc.">
                 </div>
+
+                <!-- Sección de Insumos Usados para descontar stock -->
+                <div style="border-top: 1px dashed var(--border); margin-top: 15px; padding-top: 15px;">
+                    <h3 style="font-size: 0.95rem; margin-bottom: 10px; font-weight: 700; color: var(--foreground); display: flex; align-items: center; gap: 6px;">
+                        <span>📦 Insumos Utilizados</span>
+                        <span style="font-size: 0.7rem; background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-weight: bold; text-transform: uppercase;">Descuenta Stock</span>
+                    </h3>
+                    
+                    <div class="form-row" style="margin-bottom: 10px;">
+                        <div class="form-group" style="flex: 2;">
+                            <label>Aceite Utilizado</label>
+                            <select id="service-oil" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                                <option value="">-- No utilizar aceite del stock --</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label id="service-oil-qty-label">Cantidad (Litros)</label>
+                            <input type="number" id="service-oil-qty" step="0.1" min="0" value="0" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row" style="margin-bottom: 10px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Filtro Aceite</label>
+                            <select id="service-filter-oil" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                                <option value="">-- No lleva / No cambiar --</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Filtro Aire</label>
+                            <select id="service-filter-air" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                                <option value="">-- No lleva / No cambiar --</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row" style="margin-bottom: 10px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Filtro Combustible</label>
+                            <select id="service-filter-fuel" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                                <option value="">-- No lleva / No cambiar --</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Filtro Habitáculo</label>
+                            <select id="service-filter-cabin" class="form-control" style="width:100%; height:2.5rem; border-radius:var(--radius); border:1px solid var(--border); padding:0 10px;">
+                                <option value="">-- No lleva / No cambiar --</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="modal-actions">
                     <button type="button" class="btn btn-cancel" onclick="closeServiceModal()">Cancelar</button>
                     <button type="submit" class="btn btn-save">Guardar Service</button>
