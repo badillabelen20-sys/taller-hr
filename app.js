@@ -8,11 +8,16 @@ let sales = [];
 let receptions = [];
 let expenses = [];
 let currentUser = null;
+let currentPOSCat = null;
 const DEBIT_PERCENT = 1.06;
 const CREDIT_PERCENT = 1.096;
 let wegaData = [];
 let mannData = [];
 let currentSelection = { oil: null, air: null, fuel: null, cabin: null };
+
+function roundTo5(val) {
+    return Math.round(val / 5) * 5;
+}
 
 function parseMoney(val) {
     if (!val) return 0;
@@ -191,6 +196,10 @@ async function loadFromCloud() {
             });
             sales = uniqueSales;
             
+            if (roundLubricentroPrices()) {
+                await saveData();
+            }
+            
             renderAll();
         }
     } catch (e) { console.error("Error cargando datos de Supabase:", e); }
@@ -217,6 +226,21 @@ async function saveData() {
     await syncWithCloud();
 }
 
+function roundLubricentroPrices() {
+    let changed = false;
+    if (inventory && inventory.lubricentro) {
+        inventory.lubricentro.forEach(item => {
+            const oldPrice = parseFloat(item.price) || 0;
+            const roundedPrice = Math.round(oldPrice / 5) * 5;
+            if (oldPrice !== roundedPrice) {
+                item.price = roundedPrice;
+                changed = true;
+            }
+        });
+    }
+    return changed;
+}
+
 function loadFromLocal() {
     try {
         const inv = localStorage.getItem('taller_inventory');
@@ -227,6 +251,10 @@ function loadFromLocal() {
         if (sls) sales = JSON.parse(sls);
         if (recs) receptions = JSON.parse(recs);
         if (exps) expenses = JSON.parse(exps);
+        
+        if (roundLubricentroPrices()) {
+            localStorage.setItem('taller_inventory', JSON.stringify(inventory));
+        }
     } catch (e) {
         console.warn("Local storage parse error:", e);
     }
@@ -292,7 +320,7 @@ function renderLubricentro(filter = '') {
         }
         const tr = document.createElement('tr');
         const safePrice = parseFloat(item.price) || 0;
-        tr.innerHTML = `<td>${item.type || '-'}</td><td><strong>${item.id}</strong></td><td>${item.name}</td><td>$${safePrice.toFixed(2)}</td><td class="${item.stock <= 5 ? 'stock-low' : ''}">${item.stock}</td><td><button onclick="changeStock('lubricentro', ${index}, -1)">-</button><button onclick="changeStock('lubricentro', ${index}, 1)">+</button><button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:2px 5px; margin-left:5px;" onclick="openEditModal('lubricentro', ${index})">✏️</button></td>`;
+        tr.innerHTML = `<td>${item.type || '-'}</td><td><strong>${item.id}</strong></td><td>${item.name}</td><td>$${safePrice.toFixed(0)}</td><td class="${item.stock <= 5 ? 'stock-low' : ''}">${item.stock}</td><td><button onclick="changeStock('lubricentro', ${index}, -1)">-</button><button onclick="changeStock('lubricentro', ${index}, 1)">+</button><button style="background:#3b82f6; color:white; border-radius:4px; border:none; padding:2px 5px; margin-left:5px;" onclick="openEditModal('lubricentro', ${index})">✏️</button></td>`;
         tbody.appendChild(tr);
     });
 }
@@ -458,12 +486,13 @@ function setupModal() {
     form.onsubmit = async (e) => {
         e.preventDefault();
         const cat = document.getElementById('modal-category').value;
+        const rawPrice = parseFloat(document.getElementById('input-price').value) || 0;
         const item = {
             id: document.getElementById('input-code').value.toUpperCase(),
             type: document.getElementById('input-type').value,
             name: document.getElementById('input-name').value,
-            price: parseFloat(document.getElementById('input-price').value),
-            stock: parseInt(document.getElementById('input-stock').value),
+            price: cat === 'lubricentro' ? roundTo5(rawPrice) : rawPrice,
+            stock: parseInt(document.getElementById('input-stock').value) || 0,
             vehicle: document.getElementById('input-vehicle').value
         };
         if (editingIndex !== null) inventory[cat][editingIndex] = item; else inventory[cat].push(item);
@@ -488,7 +517,8 @@ async function handleImport(event, category) {
             const items = [];
             for (let i = 1; i < json.length; i++) {
                 const r = json[i]; if (!r[col.id]) continue;
-                items.push({ id: r[col.id].toString(), name: (r[col.name]||'S/N').toString(), vehicle: col.vehicle ? (r[col.vehicle]||'').toString() : '', price: parseFloat(r[col.price])||0, stock: parseInt(r[col.stock])||0, category });
+                const rawPrice = parseFloat(r[col.price]) || 0;
+                items.push({ id: r[col.id].toString(), name: (r[col.name]||'S/N').toString(), vehicle: col.vehicle ? (r[col.vehicle]||'').toString() : '', price: category === 'lubricentro' ? roundTo5(rawPrice) : rawPrice, stock: parseInt(r[col.stock])||0, category });
             }
             inventory[category] = items; await saveData(); renderAll(); alert("Éxito");
         } catch (err) { alert("Error"); }
@@ -512,7 +542,19 @@ function setupPOS() {
                 const subText = r.item.vehicle ? ` [${r.item.id}] - ${r.item.vehicle}` : ` [${r.item.id}]`;
                 div.innerHTML = `<strong>${r.item.name}</strong><span style="color: var(--muted-foreground); font-size: 0.8rem; margin-left: 8px;">${subText}</span>`;
                 div.onclick = () => {
+                    currentPOSCat = r.cat;
                     const p = r.item; const c = p.price || 0; const d = c * DEBIT_PERCENT; const cr = c * CREDIT_PERCENT;
+                    
+                    const isLub = r.cat === 'lubricentro';
+                    const displayC = isLub ? roundTo5(c) : c;
+                    const displayD = isLub ? roundTo5(d) : d;
+                    const displayCr = isLub ? roundTo5(cr) : cr;
+                    
+                    const cashText = isLub ? displayC.toFixed(0) : displayC.toFixed(2);
+                    const transText = isLub ? displayC.toFixed(0) : displayC.toFixed(2);
+                    const debitText = isLub ? displayD.toFixed(0) : displayD.toFixed(2);
+                    const creditText = isLub ? displayCr.toFixed(0) : displayCr.toFixed(2);
+                    
                     document.getElementById('pos-selected-info').innerHTML = `
                         <div class="pos-card">
                             <div class="pos-header" style="margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">
@@ -534,22 +576,22 @@ function setupPOS() {
                             <div class="pos-prices">
                                 <div class="price-tag cash">
                                     <span class="label">Efectivo</span>
-                                    <span class="value" id="pos-price-cash">$${c.toFixed(2)}</span>
+                                    <span class="value" id="pos-price-cash">$${cashText}</span>
                                     <button class="btn-sell-pos cash" onclick="triggerPOSSale('${r.cat}', ${r.index}, 'Efectivo')">Vender</button>
                                 </div>
                                 <div class="price-tag transfer">
                                     <span class="label">Transferencia</span>
-                                    <span class="value" id="pos-price-transfer">$${c.toFixed(2)}</span>
+                                    <span class="value" id="pos-price-transfer">$${transText}</span>
                                     <button class="btn-sell-pos transfer" onclick="triggerPOSSale('${r.cat}', ${r.index}, 'Transferencia')">Vender</button>
                                 </div>
                                 <div class="price-tag debit">
                                     <span class="label">Débito (6%)</span>
-                                    <span class="value" id="pos-price-debit">$${d.toFixed(2)}</span>
+                                    <span class="value" id="pos-price-debit">$${debitText}</span>
                                     <button class="btn-sell-pos debit" onclick="triggerPOSSale('${r.cat}', ${r.index}, 'Débito')">Vender</button>
                                 </div>
                                 <div class="price-tag credit">
                                     <span class="label">Crédito (9.6%)</span>
-                                    <span class="value" id="pos-price-credit">$${cr.toFixed(2)}</span>
+                                    <span class="value" id="pos-price-credit">$${creditText}</span>
                                     <button class="btn-sell-pos credit" onclick="triggerPOSSale('${r.cat}', ${r.index}, 'Crédito')">Vender</button>
                                 </div>
                             </div>
@@ -575,10 +617,15 @@ function updatePOSPrices() {
     const debitPrice = totalBase * DEBIT_PERCENT;
     const creditPrice = totalBase * CREDIT_PERCENT;
     
-    document.getElementById('pos-price-cash').innerText = `$${totalBase.toFixed(2)}`;
-    document.getElementById('pos-price-transfer').innerText = `$${totalBase.toFixed(2)}`;
-    document.getElementById('pos-price-debit').innerText = `$${debitPrice.toFixed(2)}`;
-    document.getElementById('pos-price-credit').innerText = `$${creditPrice.toFixed(2)}`;
+    const isLub = currentPOSCat === 'lubricentro';
+    const displayBase = isLub ? roundTo5(totalBase) : totalBase;
+    const displayDebit = isLub ? roundTo5(debitPrice) : debitPrice;
+    const displayCredit = isLub ? roundTo5(creditPrice) : creditPrice;
+    
+    document.getElementById('pos-price-cash').innerText = `$${isLub ? displayBase.toFixed(0) : totalBase.toFixed(2)}`;
+    document.getElementById('pos-price-transfer').innerText = `$${isLub ? displayBase.toFixed(0) : totalBase.toFixed(2)}`;
+    document.getElementById('pos-price-debit').innerText = `$${isLub ? displayDebit.toFixed(0) : debitPrice.toFixed(2)}`;
+    document.getElementById('pos-price-credit').innerText = `$${isLub ? displayCredit.toFixed(0) : creditPrice.toFixed(2)}`;
 }
 
 function triggerPOSSale(cat, index, method) {
@@ -593,6 +640,10 @@ function triggerPOSSale(cat, index, method) {
     let finalPrice = totalBase;
     if (method === 'Débito') finalPrice = totalBase * DEBIT_PERCENT;
     else if (method === 'Crédito') finalPrice = totalBase * CREDIT_PERCENT;
+    
+    if (cat === 'lubricentro') {
+        finalPrice = roundTo5(finalPrice);
+    }
     
     completeSale(cat, index, finalPrice, method, qty);
 }
@@ -1261,7 +1312,7 @@ function searchInWega(query) {
                         <span style="background:${brandColor}; color:white; font-size:0.7rem; font-weight:bold; padding:2px 6px; border-radius:4px;">${brandText}</span>
                     </div>
                     <small>${f.desc}</small>
-                    <div style="color:var(--primary); font-weight:bold;">$${(f.price * 1.6).toFixed(0)}</div>
+                    <div style="color:var(--primary); font-weight:bold;">$${roundTo5(f.price * 1.6).toFixed(0)}</div>
                 `;
                 item.onclick = () => selectFilter(type, f);
                 optionsGrid.appendChild(item);
@@ -1510,7 +1561,7 @@ function calculateBudgetTotal() {
     Object.keys(currentSelection).forEach(type => {
         const f = currentSelection[type];
         if (f && type !== 'oil_liters' && type !== 'oil_price_l' && type !== 'oil_name') {
-            const price = f.price * 1.6;
+            const price = roundTo5(f.price * 1.6);
             total += price;
             const priceText = price > 0 ? `$${price.toFixed(0)}` : `<span style="color:#ef4444; font-weight:600; font-size:0.8rem;">(Sin precio - Catálogo)</span>`;
             itemsDiv.innerHTML += `<p><span>[${f.brand}] ${type.toUpperCase()} (${f.code})</span> <span>${priceText}</span></p>`;
@@ -1519,15 +1570,16 @@ function calculateBudgetTotal() {
 
     const oilLiters = parseFloat(document.getElementById('budget-oil-liters').value) || 0;
     if (currentSelection.oil_price_l && oilLiters > 0) {
-        const cost = currentSelection.oil_price_l * oilLiters;
+        const cost = roundTo5(currentSelection.oil_price_l * oilLiters);
         total += cost;
         itemsDiv.innerHTML += `<p><span>Aceite (${currentSelection.oil_name} x${oilLiters}L)</span> <span>$${cost.toFixed(0)}</span></p>`;
     }
 
     const labor = parseFloat(document.getElementById('budget-labor').value) || 0;
     if (labor > 0) {
-        total += labor;
-        itemsDiv.innerHTML += `<p><span>Mano de Obra</span> <span>$${labor.toFixed(0)}</span></p>`;
+        const roundedLabor = roundTo5(labor);
+        total += roundedLabor;
+        itemsDiv.innerHTML += `<p><span>Mano de Obra</span> <span>$${roundedLabor.toFixed(0)}</span></p>`;
     }
 
     totalDiv.innerHTML = `<h3>Total Calculado: $${total.toFixed(0)}</h3>`;
